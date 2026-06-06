@@ -52,6 +52,7 @@
 		</span>
 		<Badge :label="task.status || 'Open'" size="sm" theme="gray" class="hidden sm:inline-flex" />
 		<Badge v-if="task._sla_status" :label="slaLabel(task._sla_status)" size="sm" :theme="slaTheme(task._sla_status)" class="hidden sm:inline-flex" />
+		<Badge v-if="task._sla_response_status === 'Breached'" label="Response Breached" size="sm" theme="red" class="hidden lg:inline-flex" />
 		<span v-if="task.project" class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px] hidden md:inline">{{ task.project }}</span>
 		<span v-if="task.exp_end_date" class="text-xs whitespace-nowrap" :class="isOverdue ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'">
 			{{ formatDate(task.exp_end_date) }}

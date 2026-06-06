@@ -81,8 +81,15 @@
 								<Badge :label="slaLabel(sla.status)" size="sm" :theme="slaTheme(sla.status)" />
 								<span class="font-medium text-gray-700 dark:text-gray-300 truncate">{{ sla.rule }}</span>
 							</div>
-							<div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-								Due {{ formatTime(sla.due_at) }}
+							<div class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+								<span>{{ sla.priority || 'Default' }} priority</span>
+								<span v-if="sla.response_due_at">
+									Response {{ sla.response_status }} · {{ formatTime(sla.response_due_at) }}
+								</span>
+								<span>Resolution due {{ formatTime(sla.due_at) }}</span>
+								<span v-if="sla.current_escalation_level">
+									Escalation level {{ sla.current_escalation_level }}
+								</span>
 							</div>
 						</div>
 						<FeatherIcon v-if="sla.status === 'Breached'" name="alert-triangle" class="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -326,7 +333,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useTaskStore } from '@/stores/taskStore'
-import { getDoc, saveDoc, call } from '@/data/api'
+import { getDoc, call } from '@/data/api'
 import { documentUrl } from '@/utils/frappeRoute'
 import { slaLabel, slaTheme } from '@/utils/sla'
 import PrioritySlider from '@/components/common/PrioritySlider.vue'
@@ -357,7 +364,7 @@ const sourceUrl = computed(() => documentUrl(doc.value?.taskist_reference_doctyp
 watch(() => taskStore.selectedTask, async (task) => {
 	if (!task) { doc.value = null; return }
 	try {
-		doc.value = await getDoc('Task', task.name)
+		doc.value = await call('taskist.api.get_task', { task_name: task.name })
 		await Promise.all([loadComments(), loadAssignees(), loadChildTasks(), loadSlaTrackers()])
 	} catch (e) {
 		console.error('Failed to load task:', e)
@@ -375,7 +382,7 @@ async function save() {
 	if (!doc.value) return
 	saveError.value = ''
 	try {
-		const saved = await saveDoc(doc.value)
+		const saved = await call('taskist.api.save_task', { doc: doc.value })
 		if (saved && doc.value) {
 			Object.assign(doc.value, {
 				modified: saved.modified,
@@ -390,7 +397,7 @@ async function save() {
 		console.error('Failed to save:', msg)
 		if (doc.value?.name) {
 			try {
-				const fresh = await getDoc('Task', doc.value.name)
+				const fresh = await call('taskist.api.get_task', { task_name: doc.value.name })
 				if (fresh) doc.value = fresh
 			} catch { /* keep current state if reload also fails */ }
 		}

@@ -111,6 +111,7 @@ export function usePushNotifications() {
 		loading,
 		error,
 		statusLabel: computed(() => {
+			if (error.value) return error.value
 			if (!supported) return 'Push notifications are not supported'
 			if (!configured.value) return 'Push notifications are not configured'
 			return enabled.value ? 'Push notifications enabled' : 'Enable push notifications'

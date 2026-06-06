@@ -105,6 +105,7 @@ def send_push_to_user(user, title, body, url="/taskist", data=None, tag=None):
 	)
 
 	sent = 0
+	failed = 0
 	for sub in subscriptions:
 		try:
 			webpush(
@@ -123,8 +124,9 @@ def send_push_to_user(user, title, body, url="/taskist", data=None, tag=None):
 				frappe.db.set_value("Taskist Push Subscription", sub.name, "enabled", 0)
 			else:
 				frappe.log_error(frappe.get_traceback(), "Taskist Push")
+			failed += 1
 
-	return {"sent": sent}
+	return {"sent": sent, "failed": failed, "subscriptions": len(subscriptions)}
 
 
 @frappe.whitelist()
@@ -133,10 +135,38 @@ def send_test_push():
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Login is required to test push notifications"), frappe.PermissionError)
 
-	return send_push_to_user(
+	result = send_push_to_user(
 		frappe.session.user,
 		"Taskist notifications are on",
 		"You will receive task and SLA alerts here.",
 		"/taskist",
 		tag="taskist-test",
 	)
+	if not result.get("sent"):
+		frappe.throw(_("Test push was not delivered: {0}").format(result.get("skipped") or "no active subscription"))
+	return result
+
+
+@frappe.whitelist()
+def get_notification_health():
+	"""Return push and SLA delivery diagnostics for Taskist administrators."""
+	roles = set(frappe.get_roles())
+	if not roles.intersection({"System Manager", "Taskist Manager"}):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	public_key, private_key, _subject = _get_vapid_config()
+	try:
+		import pywebpush  # noqa: F401
+
+		pywebpush_installed = True
+	except ImportError:
+		pywebpush_installed = False
+
+	return {
+		"vapid_configured": bool(public_key and private_key),
+		"pywebpush_installed": pywebpush_installed,
+		"active_subscriptions": frappe.db.count("Taskist Push Subscription", {"enabled": 1}),
+		"failed_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Failed"}),
+		"pending_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Pending"}),
+		"sent_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Sent"}),
+	}

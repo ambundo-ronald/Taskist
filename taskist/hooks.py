@@ -128,6 +128,14 @@ app_license = "AGPL-3.0"
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 
+permission_query_conditions = {
+	"Task": "taskist.permissions.task_query_conditions",
+}
+
+has_permission = {
+	"Task": "taskist.permissions.task_has_permission",
+}
+
 # Document Events
 # ---------------
 
@@ -146,9 +154,12 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
-	"hourly": [
-		"taskist.sla.evaluate_sla_rules",
-	],
+	"cron": {
+		"*/5 * * * *": [
+			"taskist.sla.evaluate_sla_rules",
+			"taskist.sla.retry_failed_deliveries",
+		],
+	},
 	"daily": [
 		"taskist.api.create_recurring_tasks"
 	],
@@ -156,8 +167,10 @@ scheduler_events = {
 
 fixtures = [
 	{"dt": "Custom Field", "filters": [["name", "like", "Task-taskist_%"]]},
+	{"dt": "Role", "filters": [["name", "in", ["Taskist User", "Taskist Manager", "Taskist Auditor"]]]},
 ]
 
+before_migrate = "taskist.setup.before_migrate"
 after_install = "taskist.setup.after_install"
 
 # Testing

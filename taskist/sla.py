@@ -1,11 +1,13 @@
+import hashlib
 import json
+from datetime import datetime, timedelta
 
 import frappe
-from frappe.utils import add_to_date, get_datetime, now_datetime
+from frappe.utils import add_to_date, get_datetime, get_time, now_datetime
 
 
-OPEN_TASK_STATUSES = ["Open", "Working", "Pending Review", "Overdue"]
 DONE_TASK_STATUSES = ["Completed", "Cancelled"]
+RESPONDED_TASK_STATUSES = ["Working", "Pending Review", "Completed"]
 
 
 def _loads_filters(value):
@@ -16,66 +18,355 @@ def _loads_filters(value):
 	return json.loads(value)
 
 
-def _task_user(task):
+def _task_users(task):
 	if not task.get("_assign"):
-		return None
+		return []
 	try:
 		assignees = json.loads(task._assign)
 	except (json.JSONDecodeError, TypeError):
-		return None
-	return assignees[0] if assignees else None
+		return []
+	return assignees or []
+
+
+def _task_user(task):
+	users = _task_users(task)
+	return users[0] if users else None
 
 
 def _tracker_name(rule_name, task_name):
 	return f"{rule_name}-{task_name}"[:140]
 
 
+def _source_document(rule, task):
+	try:
+		return frappe.get_doc(rule.reference_doctype, task.taskist_reference_name)
+	except frappe.DoesNotExistError:
+		return None
+
+
+def _priority_for_task(rule, task, source_doc):
+	priority = None
+	if source_doc and rule.priority_field:
+		priority = source_doc.get(rule.priority_field)
+	return str(priority or task.get("priority") or rule.default_priority or "Medium")
+
+
+def _priority_target(rule, priority):
+	for row in rule.sla_priorities or []:
+		if (row.priority or "").lower() == priority.lower():
+			return row
+	return None
+
+
+def _holiday_dates(rule):
+	if not rule.holiday_list:
+		return set()
+	return {
+		row.holiday_date
+		for row in frappe.get_all(
+			"Holiday",
+			filters={"parent": rule.holiday_list},
+			fields=["holiday_date"],
+			limit_page_length=1000,
+		)
+	}
+
+
+def _next_working_day(value, holidays, start_time):
+	current = value
+	while current.date() in holidays or current.weekday() >= 5:
+		current = datetime.combine(current.date() + timedelta(days=1), start_time)
+	return current
+
+
+def _add_service_minutes(rule, start, minutes):
+	if not rule.apply_working_hours:
+		return add_to_date(start, minutes=minutes, as_datetime=True)
+
+	work_start = get_time(rule.working_hours_start or "08:00:00")
+	work_end = get_time(rule.working_hours_end or "17:00:00")
+	if work_end <= work_start:
+		frappe.throw(f"Working Hours End must be after Working Hours Start on SLA {rule.name}")
+
+	holidays = _holiday_dates(rule)
+	current = _next_working_day(get_datetime(start), holidays, work_start)
+	if current.time() < work_start:
+		current = datetime.combine(current.date(), work_start)
+	elif current.time() >= work_end:
+		current = _next_working_day(
+			datetime.combine(current.date() + timedelta(days=1), work_start),
+			holidays,
+			work_start,
+		)
+
+	remaining = max(int(minutes or 0), 0)
+	while remaining:
+		end_of_day = datetime.combine(current.date(), work_end)
+		available = max(int((end_of_day - current).total_seconds() // 60), 0)
+		if remaining <= available:
+			return current + timedelta(minutes=remaining)
+		remaining -= available
+		current = _next_working_day(
+			datetime.combine(current.date() + timedelta(days=1), work_start),
+			holidays,
+			work_start,
+		)
+	return current
+
+
+def _deadline_values(rule, task, source_doc):
+	priority = _priority_for_task(rule, task, source_doc)
+	target = _priority_target(rule, priority)
+	if not target and rule.default_priority:
+		priority = rule.default_priority
+		target = _priority_target(rule, priority)
+	response_minutes = int(target.first_response_minutes or 0) if target else 0
+	resolution_minutes = int(target.resolution_minutes or 0) if target else int(rule.target_minutes or 0)
+	warning_minutes = (
+		int(target.warning_minutes_before_due or 0)
+		if target
+		else int(rule.warning_minutes_before_due or 0)
+	)
+	start_time = get_datetime(task.creation)
+	response_due_at = _add_service_minutes(rule, start_time, response_minutes) if response_minutes else None
+	due_at = _add_service_minutes(rule, start_time, resolution_minutes)
+	warning_at = (
+		_add_service_minutes(rule, start_time, max(resolution_minutes - warning_minutes, 0))
+		if warning_minutes
+		else None
+	)
+	return priority, start_time, response_due_at, warning_at, due_at
+
+
 def _send_push(user, title, body, task_name, tag):
 	if not user:
-		return
-	try:
-		from taskist.push import send_push_to_user
+		return False
+	from taskist.push import send_push_to_user
 
-		send_push_to_user(
-			user,
-			title,
-			body,
-			f"/taskist?task={task_name}",
-			data={"task": task_name},
-			tag=tag,
+	result = send_push_to_user(
+		user,
+		title,
+		body,
+		f"/taskist?task={task_name}",
+		data={"task": task_name},
+		tag=tag,
+	)
+	if not result.get("sent"):
+		raise RuntimeError(result.get("skipped") or "No active push subscription")
+	return True
+
+
+def _send_in_app(user, title, body, task_name):
+	if not user:
+		return False
+	notification = frappe.new_doc("Notification Log")
+	notification.subject = title
+	notification.email_content = body
+	notification.for_user = user
+	notification.type = "Alert"
+	notification.document_type = "Task"
+	notification.document_name = task_name
+	notification.from_user = "Administrator"
+	notification.insert(ignore_permissions=True)
+	frappe.publish_realtime(
+		"taskist_notification",
+		{"title": title, "body": body, "task": task_name, "url": f"/taskist?task={task_name}"},
+		user=user,
+		after_commit=True,
+	)
+	return True
+
+
+def _send_email(user, title, body, task_name):
+	if not user:
+		return False
+	frappe.sendmail(
+		recipients=[user],
+		subject=title,
+		message=f"{body}<br><br><a href=\"{frappe.utils.get_url('/taskist?task=' + task_name)}\">Open Taskist</a>",
+	)
+	return True
+
+
+def _delivery_channels(channel):
+	channels = []
+	if channel in ("Push", "Push and Email", "All"):
+		channels.append("Push")
+	if channel in ("In App", "All"):
+		channels.append("In App")
+	if channel in ("Email", "Push and Email", "All"):
+		channels.append("Email")
+	return channels
+
+
+def _delivery_name(event_key, user, channel):
+	value = f"{event_key}|{user}|{channel}"
+	return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _attempt_delivery(event_key, tracker_name, user, channel, title, body, task_name):
+	name = _delivery_name(event_key, user, channel)
+	if frappe.db.exists("Taskist Notification Delivery", name):
+		delivery = frappe.get_doc("Taskist Notification Delivery", name)
+	else:
+		delivery = frappe.new_doc("Taskist Notification Delivery")
+		delivery.name = name
+		delivery.event_key = event_key
+		delivery.tracker = tracker_name
+		delivery.task = task_name
+		delivery.recipient = user
+		delivery.channel = channel
+		delivery.title = title
+		delivery.body = body
+
+	if delivery.status == "Sent" or int(delivery.attempts or 0) >= 5:
+		return True
+
+	delivery.attempts = int(delivery.attempts or 0) + 1
+	try:
+		if channel == "Push":
+			_send_push(user, title, body, task_name, event_key)
+		elif channel == "In App":
+			_send_in_app(user, title, body, task_name)
+		elif channel == "Email":
+			_send_email(user, title, body, task_name)
+		delivery.status = "Sent"
+		delivery.sent_on = now_datetime()
+		delivery.last_error = None
+	except Exception as exc:
+		delivery.status = "Failed"
+		delivery.last_error = str(exc)[:500]
+		frappe.log_error(frappe.get_traceback(), "Taskist SLA Notification Delivery")
+	delivery.save(ignore_permissions=True)
+	return delivery.status == "Sent" or int(delivery.attempts or 0) >= 5
+
+
+def _deliver(users, channel, title, body, task_name, event_key, tracker_name=None):
+	results = []
+	for user in set(filter(None, users)):
+		for delivery_channel in _delivery_channels(channel):
+			results.append(
+				_attempt_delivery(
+					event_key,
+					tracker_name,
+					user,
+					delivery_channel,
+					title,
+					body,
+					task_name,
+				)
+			)
+	return bool(results) and all(results)
+
+
+def retry_failed_deliveries():
+	"""Retry failed notification channels independently of tracker state."""
+	retry_before = add_to_date(now_datetime(), minutes=-4, as_datetime=True)
+	names = frappe.get_all(
+		"Taskist Notification Delivery",
+		filters={
+			"status": "Failed",
+			"attempts": ["<", 5],
+			"modified": ["<=", retry_before],
+		},
+		pluck="name",
+		limit_page_length=200,
+	)
+	for name in names:
+		delivery = frappe.get_doc("Taskist Notification Delivery", name)
+		_attempt_delivery(
+			delivery.event_key,
+			delivery.tracker,
+			delivery.recipient,
+			delivery.channel,
+			delivery.title,
+			delivery.body,
+			delivery.task,
 		)
-	except Exception:
-		frappe.log_error(frappe.get_traceback(), "Taskist SLA Push")
+
+
+def _escalation_recipients(row, tracker):
+	if row.recipient_type == "Assignee":
+		assign_value = frappe.db.get_value("Task", tracker.task, "_assign")
+		return _task_users({"_assign": assign_value})
+	if row.recipient_type == "User":
+		return [row.recipient]
+	if row.recipient_type == "Role":
+		users = frappe.get_all(
+			"Has Role",
+			filters={"role": row.recipient, "parenttype": "User"},
+			pluck="parent",
+			limit_page_length=500,
+		)
+		if not users:
+			return []
+		return frappe.get_all(
+			"User",
+			filters={"name": ["in", users], "enabled": 1},
+			pluck="name",
+			limit_page_length=500,
+		)
+	if row.recipient_type == "Document Owner":
+		return [
+			frappe.db.get_value(
+				tracker.reference_doctype,
+				tracker.reference_name,
+				"owner",
+			)
+		]
+	return []
 
 
 def ensure_tracker(rule, task):
 	tracker_name = _tracker_name(rule.name, task.name)
-	if frappe.db.exists("Taskist SLA Tracker", tracker_name):
-		tracker = frappe.get_doc("Taskist SLA Tracker", tracker_name)
-	else:
-		tracker = frappe.new_doc("Taskist SLA Tracker")
+	is_new = not frappe.db.exists("Taskist SLA Tracker", tracker_name)
+	tracker = frappe.new_doc("Taskist SLA Tracker") if is_new else frappe.get_doc("Taskist SLA Tracker", tracker_name)
+
+	if is_new:
 		tracker.name = tracker_name
 		tracker.rule = rule.name
 		tracker.task = task.name
 		tracker.reference_doctype = task.taskist_reference_doctype
 		tracker.reference_name = task.taskist_reference_name
 
-	start_time = get_datetime(task.creation)
-	target_minutes = int(rule.target_minutes or 0)
-	warning_minutes = int(rule.warning_minutes_before_due or 0)
-	due_at = add_to_date(start_time, minutes=target_minutes, as_datetime=True)
-	warning_at = add_to_date(due_at, minutes=-warning_minutes, as_datetime=True) if warning_minutes else None
-
+	source_doc = _source_document(rule, task)
+	priority, start_time, response_due_at, warning_at, due_at = _deadline_values(rule, task, source_doc)
 	tracker.user = _task_user(task)
+	tracker.priority = priority
 	tracker.start_time = start_time
-	tracker.due_at = due_at
+	tracker.response_due_at = response_due_at
 	tracker.warning_at = warning_at
+	tracker.due_at = due_at
 	tracker.status = "Completed" if task.status in DONE_TASK_STATUSES else getattr(tracker, "status", None) or "Open"
+	tracker.response_status = getattr(tracker, "response_status", None) or "Pending"
 	tracker.save(ignore_permissions=True)
 	return tracker
 
 
+def mark_response_for_task(task):
+	if task.status not in RESPONDED_TASK_STATUSES:
+		return
+	trackers = frappe.get_all(
+		"Taskist SLA Tracker",
+		filters={"task": task.name, "response_status": ["in", ["Pending", "Breached"]]},
+		pluck="name",
+		limit_page_length=100,
+	)
+	now = now_datetime()
+	for name in trackers:
+		tracker = frappe.get_doc("Taskist SLA Tracker", name)
+		tracker.responded_on = now
+		if tracker.response_status != "Breached":
+			tracker.response_status = (
+				"Met"
+				if not tracker.response_due_at or now <= get_datetime(tracker.response_due_at)
+				else "Breached"
+			)
+		tracker.save(ignore_permissions=True)
+
+
 def complete_trackers_for_task(task):
+	mark_response_for_task(task)
 	trackers = frappe.get_all(
 		"Taskist SLA Tracker",
 		filters={"task": task.name, "status": ["not in", ["Completed", "Cancelled"]]},
@@ -89,124 +380,180 @@ def complete_trackers_for_task(task):
 		tracker.save(ignore_permissions=True)
 
 
+def _task_matches_rule(rule, task):
+	try:
+		filters = _loads_filters(rule.conditions_json)
+	except Exception:
+		frappe.log_error(f"Invalid SLA filters on {rule.name}", "Taskist SLA")
+		return False
+	if not filters:
+		return True
+	filters = list(filters) if isinstance(filters, list) else dict(filters)
+	if isinstance(filters, dict):
+		filters["name"] = task.taskist_reference_name
+	else:
+		filters.append(["name", "=", task.taskist_reference_name])
+	return bool(frappe.get_all(rule.reference_doctype, filters=filters, pluck="name", limit_page_length=1))
+
+
 def evaluate_task_against_sla_rules(task):
 	if not task.get("taskist_reference_doctype") or not task.get("taskist_reference_name"):
 		return
-
 	rules = frappe.get_all(
 		"Taskist SLA Rule",
 		filters={"enabled": 1, "reference_doctype": task.taskist_reference_doctype},
-		fields=["name", "reference_doctype", "conditions_json", "target_minutes", "warning_minutes_before_due"],
+		pluck="name",
 		limit_page_length=100,
 	)
-	for rule_data in rules:
-		rule = frappe.get_doc("Taskist SLA Rule", rule_data.name)
+	for rule_name in rules:
+		rule = frappe.get_doc("Taskist SLA Rule", rule_name)
+		if _task_matches_rule(rule, task):
+			ensure_tracker(rule, task)
+
+
+def _evaluate_escalations(rule, tracker, now):
+	sent = set(json.loads(tracker.escalations_sent_json or "[]"))
+	changed = False
+	for row in rule.escalation_matrix or []:
+		if row.trigger == "Warning" and tracker.status == "Breached":
+			continue
+		base_time = {
+			"Response Breach": tracker.response_due_at,
+			"Warning": tracker.warning_at,
+			"Breach": tracker.due_at,
+		}.get(row.trigger)
+		if not base_time:
+			continue
+		trigger_at = add_to_date(base_time, minutes=int(row.after_minutes or 0), as_datetime=True)
+		key = f"{row.trigger}:{row.level}:{row.idx}"
+		if now < get_datetime(trigger_at) or key in sent:
+			continue
+		title = f"SLA {row.trigger.lower()} escalation"
+		body = f"{tracker.task} reached SLA {row.trigger.lower()} level {row.level}."
+		delivered = _deliver(
+			_escalation_recipients(row, tracker),
+			row.channel,
+			title,
+			body,
+			tracker.task,
+			f"taskist-sla-{key}-{tracker.name}",
+			tracker.name,
+		)
+		if not delivered:
+			continue
+		sent.add(key)
+		tracker.current_escalation_level = max(int(tracker.current_escalation_level or 0), int(row.level or 0))
+		changed = True
+	if changed:
+		tracker.escalations_sent_json = json.dumps(sorted(sent))
+
+
+def evaluate_sla_rules():
+	"""Create/update trackers, then evaluate response, resolution, and escalation deadlines."""
+	rules = frappe.get_all(
+		"Taskist SLA Rule",
+		filters={"enabled": 1},
+		pluck="name",
+		limit_page_length=100,
+	)
+	for rule_name in rules:
+		rule = frappe.get_doc("Taskist SLA Rule", rule_name)
 		try:
 			filters = _loads_filters(rule.conditions_json)
 		except Exception:
 			frappe.log_error(f"Invalid SLA filters on {rule.name}", "Taskist SLA")
 			continue
-
-		if filters:
-			filters = list(filters) if isinstance(filters, list) else dict(filters)
-			if isinstance(filters, dict):
-				filters["name"] = task.taskist_reference_name
-			else:
-				filters.append(["name", "=", task.taskist_reference_name])
-			matches = frappe.get_all(rule.reference_doctype, filters=filters, pluck="name", limit_page_length=1)
-			if not matches:
-				continue
-
-		ensure_tracker(rule, task)
-
-
-def evaluate_sla_rules():
-	"""Scheduler job: create/update SLA trackers and send warning/breach notifications."""
-	enabled_rules = frappe.get_all(
-		"Taskist SLA Rule",
-		filters={"enabled": 1},
-		fields=["name", "reference_doctype", "conditions_json"],
-		limit_page_length=100,
-	)
-
-	for rule_data in enabled_rules:
-		try:
-			filters = _loads_filters(rule_data.conditions_json)
-		except Exception:
-			frappe.log_error(f"Invalid SLA filters on {rule_data.name}", "Taskist SLA")
-			continue
-
 		source_names = frappe.get_all(
-			rule_data.reference_doctype,
+			rule.reference_doctype,
 			filters=filters,
 			pluck="name",
 			limit_page_length=500,
 		)
 		if not source_names:
 			continue
-
 		tasks = frappe.get_all(
 			"Task",
 			filters={
-				"taskist_reference_doctype": rule_data.reference_doctype,
+				"taskist_reference_doctype": rule.reference_doctype,
 				"taskist_reference_name": ["in", source_names],
 				"is_template": 0,
 			},
-			fields=["name", "status", "creation", "_assign", "taskist_reference_doctype", "taskist_reference_name"],
+			fields=[
+				"name", "status", "priority", "creation", "_assign",
+				"taskist_reference_doctype", "taskist_reference_name",
+			],
 			limit_page_length=500,
 		)
-		rule = frappe.get_doc("Taskist SLA Rule", rule_data.name)
 		for task in tasks:
 			if task.status in DONE_TASK_STATUSES:
 				complete_trackers_for_task(task)
 			else:
 				ensure_tracker(rule, task)
-
+				mark_response_for_task(task)
 	evaluate_open_trackers()
 
 
 def evaluate_open_trackers():
 	now = now_datetime()
-	trackers = frappe.get_all(
+	names = frappe.get_all(
 		"Taskist SLA Tracker",
 		filters={"status": ["in", ["Open", "Warning", "Breached"]]},
-		fields=[
-			"name", "rule", "task", "user", "due_at", "warning_at", "status",
-			"warning_sent_on", "breach_sent_on",
-		],
+		pluck="name",
 		limit_page_length=500,
 	)
+	for name in names:
+		tracker = frappe.get_doc("Taskist SLA Tracker", name)
+		rule = frappe.get_doc("Taskist SLA Rule", tracker.rule)
+		assign_value = frappe.db.get_value("Task", tracker.task, "_assign")
+		assignees = _task_users({"_assign": assign_value}) or [tracker.user]
 
-	for row in trackers:
-		rule = frappe.get_doc("Taskist SLA Rule", row.rule)
-		tracker = frappe.get_doc("Taskist SLA Tracker", row.name)
+		if tracker.response_status == "Pending" and tracker.response_due_at:
+			if get_datetime(tracker.response_due_at) <= now:
+				tracker.response_status = "Breached"
+		if tracker.response_status == "Breached" and rule.notify_on_breach and not tracker.response_breach_sent_on:
+			delivered = _deliver(
+				assignees,
+				"Push",
+				"First response SLA breached",
+				f"{tracker.task} has passed its first response target.",
+				tracker.task,
+				f"taskist-sla-response-breach-{tracker.name}",
+				tracker.name,
+			)
+			if delivered:
+				tracker.response_breach_sent_on = now
 
-		if row.due_at and get_datetime(row.due_at) <= now:
+		if tracker.due_at and get_datetime(tracker.due_at) <= now:
 			if tracker.status != "Breached":
 				tracker.status = "Breached"
 				tracker.breached_on = now
 			if rule.notify_on_breach and not tracker.breach_sent_on:
-				_send_push(
-					row.user,
+				delivered = _deliver(
+					assignees,
+					"Push",
 					"SLA breached",
-					f"{row.task} has passed its SLA target.",
-					row.task,
-					f"taskist-sla-breach-{row.name}",
+					f"{tracker.task} has passed its resolution target.",
+					tracker.task,
+					f"taskist-sla-breach-{tracker.name}",
+					tracker.name,
 				)
-				tracker.breach_sent_on = now
-			tracker.save(ignore_permissions=True)
-			continue
-
-		if row.warning_at and get_datetime(row.warning_at) <= now:
+				if delivered:
+					tracker.breach_sent_on = now
+		elif tracker.warning_at and get_datetime(tracker.warning_at) <= now:
 			if tracker.status == "Open":
 				tracker.status = "Warning"
 			if rule.notify_on_warning and not tracker.warning_sent_on:
-				_send_push(
-					row.user,
+				delivered = _deliver(
+					assignees,
+					"Push",
 					"SLA warning",
-					f"{row.task} is approaching its SLA target.",
-					row.task,
-					f"taskist-sla-warning-{row.name}",
+					f"{tracker.task} is approaching its resolution target.",
+					tracker.task,
+					f"taskist-sla-warning-{tracker.name}",
+					tracker.name,
 				)
-				tracker.warning_sent_on = now
-			tracker.save(ignore_permissions=True)
+				if delivered:
+					tracker.warning_sent_on = now
+
+		_evaluate_escalations(rule, tracker, now)
+		tracker.save(ignore_permissions=True)

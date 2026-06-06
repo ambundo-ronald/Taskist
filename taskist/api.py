@@ -3,6 +3,8 @@ from frappe.utils import nowdate, now_datetime, getdate, cint, flt
 import json
 import re
 
+from taskist.access import check_task_update, check_task_view, visible_users
+
 
 def _normalize_date(dt_value):
 	"""Convert Datetime field value to 'YYYY-MM-DD' date string.
@@ -73,6 +75,11 @@ def get_tasks(
 
 	pl = cint(page_length) or 500
 	pl = min(pl, 500)
+	if assigned_to:
+		allowed_users = visible_users()
+		if allowed_users is not None and assigned_to not in allowed_users:
+			frappe.throw("You cannot view tasks assigned to this user.", frappe.PermissionError)
+		conditions["_assign"] = ["like", f'%"{assigned_to}"%']
 	tasks = frappe.get_list(
 		"Task",
 		filters=conditions,
@@ -81,9 +88,6 @@ def get_tasks(
 		page_length=pl,
 		start=cint(start),
 	)
-
-	if assigned_to:
-		tasks = [t for t in tasks if t.get("_assign") and assigned_to in t["_assign"]]
 
 	# Normalize Datetime fields for the frontend (preserve time when non-zero)
 	for task in tasks:
@@ -126,7 +130,10 @@ def get_tasks(
 		sla_trackers = frappe.get_all(
 			"Taskist SLA Tracker",
 			filters={"task": ["in", task_names]},
-			fields=["task", "status", "due_at", "warning_at", "rule"],
+			fields=[
+				"task", "status", "priority", "due_at", "warning_at", "rule",
+				"response_status", "response_due_at", "current_escalation_level",
+			],
 			order_by="due_at asc",
 		)
 		sla_by_task = {}
@@ -140,18 +147,54 @@ def get_tasks(
 			task["_sla_due_at"] = str(tracker.due_at) if tracker and tracker.due_at else None
 			task["_sla_warning_at"] = str(tracker.warning_at) if tracker and tracker.warning_at else None
 			task["_sla_rule"] = tracker.rule if tracker else None
+			task["_sla_priority"] = tracker.priority if tracker else None
+			task["_sla_response_status"] = tracker.response_status if tracker else None
+			task["_sla_response_due_at"] = (
+				str(tracker.response_due_at) if tracker and tracker.response_due_at else None
+			)
+			task["_sla_escalation_level"] = tracker.current_escalation_level if tracker else 0
 
 	return tasks
 
 
 @frappe.whitelist()
+def get_access_scope():
+	"""Describe the current user's effective Taskist visibility and update scope."""
+	from taskist.access import can_manage_all_tasks, can_view_all_tasks, manageable_users
+
+	visible = visible_users()
+	manageable = manageable_users()
+	return {
+		"user": frappe.session.user,
+		"view_all_tasks": can_view_all_tasks(),
+		"manage_all_tasks": can_manage_all_tasks(),
+		"visible_users": sorted(visible) if visible is not None else [],
+		"manageable_users": sorted(manageable) if manageable is not None else [],
+	}
+
+
+@frappe.whitelist()
+def get_task(task_name):
+	"""Get a Task document after applying Taskist visibility rules."""
+	check_task_view(task_name)
+	frappe.has_permission("Task", doc=task_name, throw=True)
+	return frappe.get_doc("Task", task_name).as_dict()
+
+
+@frappe.whitelist()
 def get_task_sla(task_name):
 	"""Get SLA tracker summaries for a Task."""
+	check_task_view(task_name)
 	frappe.has_permission("Task", doc=task_name, throw=True)
 	return frappe.get_all(
 		"Taskist SLA Tracker",
 		filters={"task": task_name},
-		fields=["name", "rule", "status", "due_at", "warning_at", "breached_on", "completed_on"],
+		fields=[
+			"name", "rule", "status", "priority", "start_time",
+			"response_status", "response_due_at", "responded_on", "response_breach_sent_on",
+			"due_at", "warning_at", "breached_on", "completed_on",
+			"current_escalation_level",
+		],
 		order_by="due_at asc",
 		limit_page_length=20,
 	)
@@ -178,6 +221,7 @@ def quick_create_task(
 	if project:
 		task.project = project
 	if parent_task:
+		check_task_update(parent_task)
 		frappe.has_permission("Task", "write", doc=parent_task, throw=True)
 		task.parent_task = parent_task
 		# Ensure the parent is marked as a group task (required by ERPNext)
@@ -191,9 +235,12 @@ def quick_create_task(
 
 	task.insert(ignore_permissions=False)
 
-	if assigned_to:
+	if not assigned_to and frappe.session.user != "Guest":
+		assigned_to = [frappe.session.user]
+	elif assigned_to:
 		if isinstance(assigned_to, str):
 			assigned_to = json.loads(assigned_to) if assigned_to.startswith("[") else [assigned_to]
+	if assigned_to:
 		for user in assigned_to:
 			frappe.desk.form.assign_to.add(
 				{"doctype": "Task", "name": task.name, "assign_to": [user]}
@@ -211,6 +258,7 @@ def quick_create_task(
 @frappe.whitelist()
 def update_task_status(task_name, status, sort_order=None):
 	"""Update a task's status (used by kanban drag-drop and list toggle)."""
+	check_task_update(task_name)
 	task = frappe.get_doc("Task", task_name)
 	task.status = status
 	if sort_order is not None:
@@ -227,6 +275,7 @@ def update_task_status(task_name, status, sort_order=None):
 @frappe.whitelist()
 def update_task_dates(task_name, exp_start_date=None, exp_end_date=None):
 	"""Update a task's expected start/end dates (used by calendar drag-drop)."""
+	check_task_update(task_name)
 	doc = frappe.get_doc("Task", task_name)
 	if exp_start_date is not None:
 		doc.exp_start_date = exp_start_date or None
@@ -234,6 +283,28 @@ def update_task_dates(task_name, exp_start_date=None, exp_end_date=None):
 		doc.exp_end_date = exp_end_date or None
 	doc.save(ignore_permissions=False)
 	return {"name": doc.name, "exp_start_date": str(doc.exp_start_date), "exp_end_date": str(doc.exp_end_date)}
+
+
+@frappe.whitelist()
+def save_task(doc):
+	"""Save a Task through Taskist after enforcing Taskist update access."""
+	if isinstance(doc, str):
+		doc = json.loads(doc)
+	if doc.get("doctype") != "Task" or not doc.get("name"):
+		frappe.throw("Invalid Task document.")
+	check_task_update(doc["name"])
+	existing = frappe.get_doc("Task", doc["name"])
+	editable_fields = {
+		"subject", "status", "priority", "type", "project",
+		"exp_start_date", "exp_end_date", "expected_time", "progress",
+		"color", "is_milestone", "is_group", "description",
+		"taskist_is_recurring", "taskist_recurrence_rule",
+	}
+	for field in editable_fields:
+		if field in doc:
+			existing.set(field, doc[field])
+	existing.save(ignore_permissions=False)
+	return existing.as_dict()
 
 
 @frappe.whitelist()
@@ -451,22 +522,25 @@ def search_users(query="", page_length=10):
 @frappe.whitelist()
 def assign_task(task_name, user):
 	"""Assign a user to a task."""
+	check_task_update(task_name)
 	from frappe.desk.form.assign_to import add as assign_add
 	assign_add({"doctype": "Task", "name": task_name, "assign_to": [user]})
-	return get_task_assignees(task_name)
+	return _get_task_assignees(task_name)
 
 
 @frappe.whitelist()
 def unassign_task(task_name, user):
 	"""Remove a user assignment from a task."""
+	check_task_update(task_name)
 	from frappe.desk.form.assign_to import remove as assign_remove
 	assign_remove("Task", task_name, user)
-	return get_task_assignees(task_name)
+	return _get_task_assignees(task_name)
 
 
 @frappe.whitelist()
 def get_task_comments(task_name):
 	"""Get comments for a task. Checks Task read access instead of Comment DocType permissions."""
+	check_task_view(task_name)
 	frappe.has_permission("Task", doc=task_name, throw=True)
 	return frappe.get_all(
 		"Comment",
@@ -484,6 +558,7 @@ def get_task_comments(task_name):
 @frappe.whitelist()
 def add_task_comment(task_name, content):
 	"""Add a comment to a task. Requires Task write access."""
+	check_task_update(task_name)
 	frappe.has_permission("Task", "write", doc=task_name, throw=True)
 	comment = frappe.new_doc("Comment")
 	comment.comment_type = "Comment"
@@ -501,6 +576,11 @@ def add_task_comment(task_name, content):
 
 def get_task_assignees(task_name):
 	"""Get list of users assigned to a task."""
+	check_task_view(task_name)
+	return _get_task_assignees(task_name)
+
+
+def _get_task_assignees(task_name):
 	assign_str = frappe.db.get_value("Task", task_name, "_assign")
 	if not assign_str:
 		return []
@@ -519,6 +599,7 @@ def get_task_assignees(task_name):
 @frappe.whitelist()
 def get_attachments(task_name):
 	"""Get file attachments for a task."""
+	check_task_view(task_name)
 	frappe.has_permission("Task", doc=task_name, throw=True)
 	files = frappe.get_list(
 		"File",
@@ -544,6 +625,7 @@ def remove_attachment(file_name):
 	"""Remove a file attachment."""
 	file_doc = frappe.get_doc("File", file_name)
 	if file_doc.attached_to_doctype == "Task" and file_doc.attached_to_name:
+		check_task_update(file_doc.attached_to_name)
 		frappe.has_permission("Task", "write", doc=file_doc.attached_to_name, throw=True)
 	frappe.delete_doc("File", file_name, ignore_permissions=False)
 	return {"success": True}
@@ -552,6 +634,7 @@ def remove_attachment(file_name):
 @frappe.whitelist()
 def get_child_tasks(parent_task):
 	"""Get child tasks of a parent task."""
+	check_task_view(parent_task)
 	tasks = frappe.get_list(
 		"Task",
 		filters={"parent_task": parent_task, "is_template": 0},
@@ -568,6 +651,9 @@ def get_child_tasks(parent_task):
 
 def notify_task_change(doc, method=None):
 	"""Broadcast task changes via realtime for multi-user sync."""
+	from taskist.sla import mark_response_for_task
+
+	mark_response_for_task(doc)
 	if doc.status == "Completed":
 		from taskist.assignments import close_source_todo_for_task
 		from taskist.sla import complete_trackers_for_task

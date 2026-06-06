@@ -1,0 +1,120 @@
+{
+ "actions": [],
+ "autoname": "prompt",
+ "creation": "2026-06-06 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event_key",
+  "tracker",
+  "task",
+  "recipient",
+  "channel",
+  "title",
+  "body",
+  "status",
+  "attempts",
+  "last_error",
+  "sent_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Event Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tracker",
+   "fieldtype": "Link",
+   "label": "SLA Tracker",
+   "options": "Taskist SLA Tracker"
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Link",
+   "label": "Task",
+   "options": "Task",
+   "reqd": 1
+  },
+  {
+   "fieldname": "recipient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Recipient",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Channel",
+   "options": "Push\nIn App\nEmail",
+   "reqd": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Small Text",
+   "label": "Body",
+   "reqd": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nSent\nFailed",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "attempts",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Attempts",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Sent On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Notification Delivery",
+ "naming_rule": "Set by user",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "role": "Taskist Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

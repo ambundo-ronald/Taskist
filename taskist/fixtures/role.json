@@ -1,0 +1,23 @@
+[
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "doctype": "Role",
+  "name": "Taskist User",
+  "role_name": "Taskist User"
+ },
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "doctype": "Role",
+  "name": "Taskist Manager",
+  "role_name": "Taskist Manager"
+ },
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "doctype": "Role",
+  "name": "Taskist Auditor",
+  "role_name": "Taskist Auditor"
+ }
+]

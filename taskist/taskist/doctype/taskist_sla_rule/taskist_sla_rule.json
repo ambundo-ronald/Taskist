@@ -9,6 +9,17 @@
   "enabled",
   "reference_doctype",
   "conditions_json",
+  "priority_field",
+  "default_priority",
+  "sla_priorities",
+  "calendar_section",
+  "apply_working_hours",
+  "working_hours_start",
+  "working_hours_end",
+  "holiday_list",
+  "escalation_section",
+  "escalation_matrix",
+  "legacy_section",
   "target_minutes",
   "warning_minutes_before_due",
   "notify_on_warning",
@@ -46,15 +57,87 @@
    "options": "JSON"
   },
   {
+   "default": "priority",
+   "description": "Field on the source document used to select an SLA priority row. Falls back to Task priority.",
+   "fieldname": "priority_field",
+   "fieldtype": "Data",
+   "label": "Priority Field"
+  },
+  {
+   "default": "Medium",
+   "fieldname": "default_priority",
+   "fieldtype": "Select",
+   "label": "Default Priority",
+   "options": "Urgent\nHigh\nMedium\nLow",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sla_priorities",
+   "fieldtype": "Table",
+   "label": "Priority Targets",
+   "options": "Taskist SLA Priority"
+  },
+  {
+   "fieldname": "calendar_section",
+   "fieldtype": "Section Break",
+   "label": "Service Calendar"
+  },
+  {
+   "default": "0",
+   "fieldname": "apply_working_hours",
+   "fieldtype": "Check",
+   "label": "Apply Working Hours"
+  },
+  {
+   "default": "08:00:00",
+   "depends_on": "apply_working_hours",
+   "fieldname": "working_hours_start",
+   "fieldtype": "Time",
+   "label": "Working Hours Start"
+  },
+  {
+   "default": "17:00:00",
+   "depends_on": "apply_working_hours",
+   "fieldname": "working_hours_end",
+   "fieldtype": "Time",
+   "label": "Working Hours End"
+  },
+  {
+   "depends_on": "apply_working_hours",
+   "fieldname": "holiday_list",
+   "fieldtype": "Link",
+   "label": "Holiday List",
+   "options": "Holiday List"
+  },
+  {
+   "fieldname": "escalation_section",
+   "fieldtype": "Section Break",
+   "label": "Escalation Matrix"
+  },
+  {
+   "fieldname": "escalation_matrix",
+   "fieldtype": "Table",
+   "label": "Escalation Matrix",
+   "options": "Taskist SLA Escalation"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "legacy_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy Defaults"
+  },
+  {
    "default": "1440",
+   "description": "Fallback used when no priority target row exists.",
    "fieldname": "target_minutes",
    "fieldtype": "Int",
    "in_list_view": 1,
    "label": "Target Minutes",
-   "reqd": 1
+   "reqd": 0
   },
   {
    "default": "60",
+   "description": "Fallback used when no priority target row exists.",
    "fieldname": "warning_minutes_before_due",
    "fieldtype": "Int",
    "label": "Warning Minutes Before Due"

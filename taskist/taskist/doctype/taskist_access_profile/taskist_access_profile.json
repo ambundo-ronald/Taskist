@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "autoname": "field:user",
+ "creation": "2026-06-06 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["user", "view_all_tasks", "visible_users"],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "view_all_tasks",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "View All Tasks"
+  },
+  {
+   "fieldname": "visible_users",
+   "fieldtype": "Table",
+   "label": "Can View Tasks Assigned To",
+   "options": "Taskist Visible User"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Access Profile",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Taskist Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

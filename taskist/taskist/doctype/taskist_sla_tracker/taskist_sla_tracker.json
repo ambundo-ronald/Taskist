@@ -9,15 +9,22 @@
   "status",
   "task",
   "user",
+  "priority",
   "reference_doctype",
   "reference_name",
   "start_time",
+  "response_due_at",
+  "responded_on",
+  "response_status",
+  "response_breach_sent_on",
   "warning_at",
   "due_at",
   "warning_sent_on",
   "breach_sent_on",
   "breached_on",
-  "completed_on"
+  "completed_on",
+  "current_escalation_level",
+  "escalations_sent_json"
  ],
  "fields": [
   {
@@ -53,6 +60,12 @@
    "options": "User"
   },
   {
+   "fieldname": "priority",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Priority"
+  },
+  {
    "fieldname": "reference_doctype",
    "fieldtype": "Link",
    "label": "Reference DocType",
@@ -71,6 +84,28 @@
    "fieldtype": "Datetime",
    "label": "Start Time",
    "reqd": 1
+  },
+  {
+   "fieldname": "response_due_at",
+   "fieldtype": "Datetime",
+   "label": "Response Due At"
+  },
+  {
+   "fieldname": "responded_on",
+   "fieldtype": "Datetime",
+   "label": "Responded On"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "response_status",
+   "fieldtype": "Select",
+   "label": "Response Status",
+   "options": "Pending\nMet\nBreached"
+  },
+  {
+   "fieldname": "response_breach_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Response Breach Sent On"
   },
   {
    "fieldname": "warning_at",
@@ -103,6 +138,20 @@
    "fieldname": "completed_on",
    "fieldtype": "Datetime",
    "label": "Completed On"
+  },
+  {
+   "default": "0",
+   "fieldname": "current_escalation_level",
+   "fieldtype": "Int",
+   "label": "Current Escalation Level",
+   "read_only": 1
+  },
+  {
+   "fieldname": "escalations_sent_json",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Escalations Sent JSON",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,

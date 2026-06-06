@@ -41,6 +41,13 @@
 				</div>
 				<div v-if="task._sla_status" class="mt-1.5">
 					<Badge :label="slaLabel(task._sla_status)" size="sm" :theme="slaTheme(task._sla_status)" />
+					<Badge
+						v-if="task._sla_response_status === 'Breached'"
+						label="Response Breached"
+						size="sm"
+						theme="red"
+						class="ml-1"
+					/>
 				</div>
 				<div class="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
 					<span
