@@ -10,7 +10,16 @@ from taskist.access import can_manage_all_tasks, can_view_task, check_task_updat
 from taskist.governance import is_rule_effective
 
 
-IGNORED_DOCTYPES = {"Task", "ToDo"}
+IGNORED_DOCTYPES = {
+	"Task",
+	"ToDo",
+	"DocType",
+	"DocField",
+	"Custom Field",
+	"Property Setter",
+	"Module Def",
+	"DocPerm",
+}
 TERMINAL_TASK_STATUSES = ["Completed", "Cancelled", "Template"]
 
 
@@ -789,6 +798,7 @@ def process_document_event(doc, method=None):
 		or doc.doctype in IGNORED_DOCTYPES
 		or doc.doctype.startswith("Taskist ")
 		or getattr(frappe.flags, "in_taskist_process_rule", False)
+		or not frappe.db.table_exists("Taskist Process Rule")
 	):
 		return
 
