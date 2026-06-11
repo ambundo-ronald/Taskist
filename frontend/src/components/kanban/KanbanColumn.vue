@@ -52,6 +52,7 @@ const columnColor = computed(() => {
 		'Pending Review': 'bg-yellow-500',
 		'Overdue': 'bg-red-500',
 		'Completed': 'bg-green-500',
+		'Cancelled': 'bg-gray-700 dark:bg-gray-400',
 	}
 	return colors[props.column] || 'bg-gray-400'
 })

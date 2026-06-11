@@ -3,6 +3,7 @@ export function slaTheme(status?: string | null) {
 	if (status === 'Warning') return 'yellow'
 	if (status === 'Completed') return 'green'
 	if (status === 'Cancelled') return 'gray'
+	if (status === 'Paused') return 'orange'
 	return 'blue'
 }
 

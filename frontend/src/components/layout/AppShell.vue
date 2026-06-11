@@ -16,6 +16,7 @@
 		<div class="flex-1 flex flex-col min-w-0">
 			<TopBar ref="topBar" @show-shortcuts="showShortcuts = true" @toggle-menu="mobileMenuOpen = !mobileMenuOpen" />
 			<TabBar />
+			<OperationalBar v-if="showOperationalBar" />
 			<div
 				v-if="taskStore.error"
 				class="mx-3 mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300 flex items-start gap-2"
@@ -40,11 +41,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Sidebar from './Sidebar.vue'
 import TopBar from './TopBar.vue'
 import TabBar from './TabBar.vue'
+import OperationalBar from './OperationalBar.vue'
 import TaskDetailPanel from '@/components/task/TaskDetailPanel.vue'
 import ShortcutsModal from '@/components/common/ShortcutsModal.vue'
 import { useTaskStore } from '@/stores/taskStore'
@@ -63,6 +65,8 @@ function handleSidebarToggle() {
 }
 const taskStore = useTaskStore()
 const router = useRouter()
+const route = useRoute()
+const showOperationalBar = computed(() => ['/kanban', '/list', '/calendar'].includes(route.path))
 const showShortcuts = ref(false)
 const topBar = ref<any>(null)
 
@@ -138,7 +142,7 @@ function handleQuickAdd(e: Event) {
 }
 
 onMounted(async () => {
-	await taskStore.fetchTasks()
+	await Promise.all([taskStore.fetchAccessScope(), taskStore.fetchTasks()])
 	const taskName = new URLSearchParams(window.location.search).get('task')
 	if (taskName) {
 		const task = taskStore.tasks.find(t => t.name === taskName)

@@ -3,14 +3,20 @@ import json
 import frappe
 from frappe.model.document import Document
 from frappe.utils import get_time
+from taskist.governance import mark_material_change_draft, record_rule_revision, validate_rule_governance
 
 
 class TaskistSLARule(Document):
 	def validate(self):
+		mark_material_change_draft(self)
 		self._validate_conditions()
 		self._validate_priorities()
 		self._validate_working_hours()
 		self._validate_escalations()
+		validate_rule_governance(self)
+
+	def on_update(self):
+		record_rule_revision(self)
 
 	def _validate_conditions(self):
 		if not self.conditions_json:

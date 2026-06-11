@@ -43,7 +43,11 @@ app_license = "AGPL-3.0"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+	"Taskist Process Rule": "public/js/taskist_process_rule.js",
+	"Taskist SLA Pause": "public/js/taskist_sla_pause.js",
+	"Taskist SLA Extension": "public/js/taskist_sla_extension.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -140,14 +144,28 @@ has_permission = {
 # ---------------
 
 doc_events = {
+	"*": {
+		"after_insert": "taskist.process.process_document_event",
+		"on_update": "taskist.process.process_document_event",
+		"on_submit": "taskist.process.process_document_event",
+		"on_cancel": "taskist.process.process_document_event",
+	},
 	"Task": {
+		"validate": [
+			"taskist.delay.validate_task_sla_transition",
+			"taskist.process.validate_task_completion",
+		],
 		"after_insert": "taskist.api.notify_task_change",
 		"on_update": "taskist.api.notify_task_change",
 	},
 	"ToDo": {
 		"after_insert": "taskist.assignments.sync_todo_assignment",
 		"on_update": "taskist.assignments.sync_todo_assignment",
-	}
+		"on_trash": "taskist.assignments.sync_todo_assignment",
+	},
+	"File": {
+		"after_insert": "taskist.events.record_attachment_event",
+	},
 }
 
 # Scheduled Tasks
@@ -156,12 +174,16 @@ doc_events = {
 scheduler_events = {
 	"cron": {
 		"*/5 * * * *": [
+			"taskist.health.record_scheduler_heartbeat",
 			"taskist.sla.evaluate_sla_rules",
 			"taskist.sla.retry_failed_deliveries",
 		],
 	},
 	"daily": [
 		"taskist.api.create_recurring_tasks"
+	],
+	"monthly": [
+		"taskist.analytics.create_monthly_kpi_snapshot",
 	],
 }
 
@@ -171,6 +193,7 @@ fixtures = [
 ]
 
 before_migrate = "taskist.setup.before_migrate"
+after_migrate = "taskist.setup.after_migrate"
 after_install = "taskist.setup.after_install"
 
 # Testing

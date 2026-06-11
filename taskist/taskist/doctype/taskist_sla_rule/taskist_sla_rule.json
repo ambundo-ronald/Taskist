@@ -7,6 +7,15 @@
  "field_order": [
   "rule_name",
   "enabled",
+  "governance_section",
+  "approval_status",
+  "business_owner",
+  "effective_from",
+  "effective_to",
+  "approved_by",
+  "approved_on",
+  "change_reason",
+  "current_version",
   "reference_doctype",
   "conditions_json",
   "priority_field",
@@ -35,12 +44,21 @@
    "unique": 1
   },
   {
-   "default": "1",
+   "default": "0",
    "fieldname": "enabled",
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Enabled"
   },
+  {"fieldname": "governance_section", "fieldtype": "Section Break", "label": "Governance"},
+  {"default": "Draft", "fieldname": "approval_status", "fieldtype": "Select", "in_list_view": 1, "label": "Approval Status", "options": "Draft\nApproved\nRetired", "read_only": 1},
+  {"fieldname": "business_owner", "fieldtype": "Link", "label": "Business Owner", "options": "User"},
+  {"fieldname": "effective_from", "fieldtype": "Datetime", "label": "Effective From"},
+  {"fieldname": "effective_to", "fieldtype": "Datetime", "label": "Effective To"},
+  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Approved By", "options": "User", "read_only": 1},
+  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "Approved On", "read_only": 1},
+  {"fieldname": "change_reason", "fieldtype": "Small Text", "label": "Change Reason"},
+  {"default": "0", "fieldname": "current_version", "fieldtype": "Int", "label": "Current Version", "read_only": 1},
   {
    "fieldname": "reference_doctype",
    "fieldtype": "Link",

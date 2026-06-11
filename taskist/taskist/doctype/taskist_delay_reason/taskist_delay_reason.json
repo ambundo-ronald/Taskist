@@ -1,0 +1,31 @@
+{
+ "actions": [],
+ "autoname": "field:reason_name",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["reason_name", "enabled", "category", "responsible_party", "pause_eligible", "evidence_required", "description"],
+ "fields": [
+  {"fieldname": "reason_name", "fieldtype": "Data", "in_list_view": 1, "label": "Reason", "reqd": 1, "unique": 1},
+  {"default": "1", "fieldname": "enabled", "fieldtype": "Check", "in_list_view": 1, "label": "Enabled"},
+  {"fieldname": "category", "fieldtype": "Select", "in_list_view": 1, "label": "Category", "options": "Internal\nCustomer\nSupplier\nStock\nFinance\nTechnical\nSystem\nOther", "reqd": 1},
+  {"fieldname": "responsible_party", "fieldtype": "Select", "in_list_view": 1, "label": "Responsible Party", "options": "Employee\nDepartment\nCustomer\nSupplier\nSystem\nShared", "reqd": 1},
+  {"default": "0", "fieldname": "pause_eligible", "fieldtype": "Check", "label": "Pause Eligible"},
+  {"default": "0", "fieldname": "evidence_required", "fieldtype": "Check", "label": "Evidence Required"},
+  {"fieldname": "description", "fieldtype": "Small Text", "label": "Description"}
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Delay Reason",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "role": "System Manager", "write": 1},
+  {"create": 1, "delete": 1, "read": 1, "role": "Taskist Manager", "write": 1},
+  {"read": 1, "role": "Taskist User"}
+ ],
+ "sort_field": "reason_name",
+ "sort_order": "ASC"
+}

@@ -115,6 +115,10 @@ const childCount = computed(() => {
 const sourceUrl = computed(() => documentUrl(props.task.taskist_reference_doctype, props.task.taskist_reference_name))
 
 async function toggleDone() {
+	if (!isDone.value && props.task._sla_status === 'Breached') {
+		taskStore.selectTask(props.task)
+		return
+	}
 	await call('taskist.api.update_task_status', {
 		task_name: props.task.name,
 		status: isDone.value ? 'Open' : 'Completed',

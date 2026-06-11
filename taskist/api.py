@@ -61,7 +61,7 @@ def get_tasks(
 
 	# Native Task fields + Taskist custom fields
 	fields = [
-		"name", "subject", "status", "priority", "project", "parent_task",
+		"name", "subject", "status", "priority", "project", "parent_task", "owner",
 		"exp_start_date", "exp_end_date", "expected_time", "progress",
 		"color", "is_group", "is_milestone", "type", "task_weight",
 		"completed_by", "completed_on", "description",
@@ -70,6 +70,10 @@ def get_tasks(
 		"taskist_sort_order",
 		"taskist_is_recurring", "taskist_recurrence_rule",
 		"taskist_reference_doctype", "taskist_reference_name", "taskist_reference_todo",
+		"taskist_process_rule", "taskist_process_event_key", "taskist_process_trigger_event",
+		"taskist_process_chain_id", "taskist_process_sequence",
+		"taskist_previous_process_task", "taskist_next_process_task",
+		"taskist_manager_approved_by", "taskist_manager_approved_on", "taskist_checklist_json",
 		"_assign", "_user_tags", "modified", "creation",
 	]
 
@@ -133,6 +137,7 @@ def get_tasks(
 			fields=[
 				"task", "status", "priority", "due_at", "warning_at", "rule",
 				"response_status", "response_due_at", "current_escalation_level",
+				"pause_status", "active_pause",
 			],
 			order_by="due_at asc",
 		)
@@ -153,6 +158,59 @@ def get_tasks(
 				str(tracker.response_due_at) if tracker and tracker.response_due_at else None
 			)
 			task["_sla_escalation_level"] = tracker.current_escalation_level if tracker else 0
+			task["_sla_pause_status"] = tracker.pause_status if tracker else None
+
+		delay_logs = frappe.get_all(
+			"Taskist Delay Log",
+			filters={"task": ["in", task_names]},
+			fields=["task", "delay_reason", "logged_on"],
+			order_by="logged_on desc",
+			limit_page_length=2000,
+		)
+		latest_delay = {}
+		for log in delay_logs:
+			if log.task not in latest_delay:
+				latest_delay[log.task] = log
+		reason_names = list({log.delay_reason for log in latest_delay.values() if log.delay_reason})
+		reason_context = {
+			row.name: row
+			for row in frappe.get_all(
+				"Taskist Delay Reason",
+				filters={"name": ["in", reason_names]},
+				fields=["name", "category", "responsible_party"],
+				limit_page_length=500,
+			)
+		} if reason_names else {}
+		for task in tasks:
+			log = latest_delay.get(task.name)
+			reason = reason_context.get(log.delay_reason) if log else None
+			task["_delay_reason"] = log.delay_reason if log else None
+			task["_delay_category"] = reason.category if reason else None
+			task["_delay_owner"] = reason.responsible_party if reason else None
+
+		process_rules = list({task.taskist_process_rule for task in tasks if task.taskist_process_rule})
+		departments = dict(
+			frappe.get_all(
+				"Taskist Process Rule",
+				filters={"name": ["in", process_rules]},
+				fields=["name", "department"],
+				as_list=True,
+				limit_page_length=500,
+			)
+		) if process_rules else {}
+		for task in tasks:
+			task["_department"] = departments.get(task.taskist_process_rule)
+
+		manual_escalations = set(
+			frappe.get_all(
+				"Taskist SLA Event",
+				filters={"task": ["in", task_names], "event_type": "Manual Escalation"},
+				pluck="task",
+				limit_page_length=2000,
+			)
+		)
+		for task in tasks:
+			task["_manual_escalated"] = task.name in manual_escalations
 
 	return tasks
 
@@ -193,6 +251,7 @@ def get_task_sla(task_name):
 			"name", "rule", "status", "priority", "start_time",
 			"response_status", "response_due_at", "responded_on", "response_breach_sent_on",
 			"due_at", "warning_at", "breached_on", "completed_on",
+			"pause_status", "active_pause", "total_paused_minutes",
 			"current_escalation_level",
 		],
 		order_by="due_at asc",
@@ -245,6 +304,15 @@ def quick_create_task(
 			frappe.desk.form.assign_to.add(
 				{"doctype": "Task", "name": task.name, "assign_to": [user]}
 			)
+			from taskist.events import record_event
+
+			record_event(
+				task.name,
+				"Assigned",
+				new_value=user,
+				notes="Assigned during task creation.",
+				dedupe_key=f"quick-create-assignment:{task.name}:{user}",
+			)
 
 	if tags:
 		if isinstance(tags, str):
@@ -256,18 +324,24 @@ def quick_create_task(
 
 
 @frappe.whitelist()
-def update_task_status(task_name, status, sort_order=None):
+def update_task_status(task_name, status, sort_order=None, delay_reason=None, delay_notes=None):
 	"""Update a task's status (used by kanban drag-drop and list toggle)."""
 	check_task_update(task_name)
 	task = frappe.get_doc("Task", task_name)
 	task.status = status
 	if sort_order is not None:
 		task.taskist_sort_order = cint(sort_order)
-	task.save(ignore_permissions=False)
-	if status == "Completed":
-		from taskist.assignments import close_source_todo_for_task
+	from taskist.delay import save_with_delay_explanation
+
+	save_with_delay_explanation(task, delay_reason, delay_notes)
+	if status in ("Completed", "Cancelled"):
+		from taskist.assignments import cancel_source_todo_for_task, close_source_todo_for_task
 		from taskist.sla import complete_trackers_for_task
-		close_source_todo_for_task(task)
+
+		if status == "Completed":
+			close_source_todo_for_task(task)
+		else:
+			cancel_source_todo_for_task(task)
 		complete_trackers_for_task(task)
 	return {"name": task.name, "status": task.status, "sort_order": task.taskist_sort_order}
 
@@ -299,11 +373,18 @@ def save_task(doc):
 		"exp_start_date", "exp_end_date", "expected_time", "progress",
 		"color", "is_milestone", "is_group", "description",
 		"taskist_is_recurring", "taskist_recurrence_rule",
+		"taskist_checklist_json",
 	}
 	for field in editable_fields:
 		if field in doc:
 			existing.set(field, doc[field])
-	existing.save(ignore_permissions=False)
+	from taskist.delay import save_with_delay_explanation
+
+	save_with_delay_explanation(
+		existing,
+		doc.get("_taskist_delay_reason"),
+		doc.get("_taskist_delay_notes"),
+	)
 	return existing.as_dict()
 
 
@@ -524,7 +605,16 @@ def assign_task(task_name, user):
 	"""Assign a user to a task."""
 	check_task_update(task_name)
 	from frappe.desk.form.assign_to import add as assign_add
+	from taskist.events import record_event
+
 	assign_add({"doctype": "Task", "name": task_name, "assign_to": [user]})
+	record_event(
+		task_name,
+		"Assigned",
+		new_value=user,
+		notes="User assigned from Taskist.",
+		dedupe_key=f"manual-assignment:{task_name}:{user}:{now_datetime()}",
+	)
 	return _get_task_assignees(task_name)
 
 
@@ -533,7 +623,16 @@ def unassign_task(task_name, user):
 	"""Remove a user assignment from a task."""
 	check_task_update(task_name)
 	from frappe.desk.form.assign_to import remove as assign_remove
+	from taskist.events import record_event
+
 	assign_remove("Task", task_name, user)
+	record_event(
+		task_name,
+		"Unassigned",
+		previous_value=user,
+		notes="User unassigned from Taskist.",
+		dedupe_key=f"manual-unassignment:{task_name}:{user}:{now_datetime()}",
+	)
 	return _get_task_assignees(task_name)
 
 
@@ -566,6 +665,14 @@ def add_task_comment(task_name, content):
 	comment.reference_name = task_name
 	comment.content = content
 	comment.insert(ignore_permissions=True)
+	from taskist.events import record_event
+
+	record_event(
+		task_name,
+		"Comment Added",
+		notes=re.sub(r"<[^>]+>", "", content or "")[:1000],
+		dedupe_key=f"comment:{comment.name}",
+	)
 	return {
 		"name": comment.name,
 		"content": comment.content,
@@ -624,10 +731,21 @@ def get_attachments(task_name):
 def remove_attachment(file_name):
 	"""Remove a file attachment."""
 	file_doc = frappe.get_doc("File", file_name)
+	task_name = None
 	if file_doc.attached_to_doctype == "Task" and file_doc.attached_to_name:
-		check_task_update(file_doc.attached_to_name)
-		frappe.has_permission("Task", "write", doc=file_doc.attached_to_name, throw=True)
+		task_name = file_doc.attached_to_name
+		check_task_update(task_name)
+		frappe.has_permission("Task", "write", doc=task_name, throw=True)
 	frappe.delete_doc("File", file_name, ignore_permissions=False)
+	if task_name:
+		from taskist.events import record_event
+
+		record_event(
+			task_name,
+			"Attachment Removed",
+			previous_value=file_doc.file_name,
+			dedupe_key=f"attachment-removed:{file_name}",
+		)
 	return {"success": True}
 
 
@@ -651,14 +769,24 @@ def get_child_tasks(parent_task):
 
 def notify_task_change(doc, method=None):
 	"""Broadcast task changes via realtime for multi-user sync."""
+	from taskist.events import record_task_change
 	from taskist.sla import mark_response_for_task
 
+	record_task_change(doc, method)
 	mark_response_for_task(doc)
-	if doc.status == "Completed":
-		from taskist.assignments import close_source_todo_for_task
+	if doc.status in ("Completed", "Cancelled"):
+		from taskist.assignments import cancel_source_todo_for_task, close_source_todo_for_task
 		from taskist.sla import complete_trackers_for_task
-		close_source_todo_for_task(doc)
+
+		if doc.status == "Completed":
+			close_source_todo_for_task(doc)
+		else:
+			cancel_source_todo_for_task(doc)
 		complete_trackers_for_task(doc)
+	if doc.status == "Completed":
+		from taskist.process import handle_task_handoff
+
+		handle_task_handoff(doc, method)
 
 	frappe.publish_realtime(
 		"taskist_update",

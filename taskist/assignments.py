@@ -43,6 +43,26 @@ def sync_todo_assignment(doc, method=None):
 	if not doc.reference_type or not doc.reference_name or not doc.allocated_to:
 		return
 	if doc.reference_type == "Task":
+		from taskist.events import record_event
+
+		previous = doc.get_doc_before_save() if method == "on_update" else None
+		if method == "after_insert":
+			record_event(
+				doc.reference_name,
+				"Assigned",
+				actor=doc.owner,
+				new_value=doc.allocated_to,
+				notes="Assigned through Frappe.",
+				dedupe_key=f"task-todo-assigned:{doc.name}",
+			)
+		elif method == "on_trash" or (previous and previous.status != doc.status and doc.status in ("Closed", "Cancelled")):
+			record_event(
+				doc.reference_name,
+				"Unassigned",
+				previous_value=doc.allocated_to,
+				notes=f"Frappe assignment {doc.status.lower() if method != 'on_trash' else 'removed'}.",
+				dedupe_key=f"task-todo-unassigned:{doc.name}:{doc.status}:{method}",
+			)
 		return
 
 	frappe.flags.in_taskist_assignment_sync = True
@@ -81,6 +101,7 @@ def sync_todo_assignment(doc, method=None):
 
 		if not task_name:
 			from frappe.desk.form.assign_to import add as assign_add
+			from taskist.events import record_event
 
 			assign_add({
 				"doctype": "Task",
@@ -88,6 +109,14 @@ def sync_todo_assignment(doc, method=None):
 				"assign_to": [doc.allocated_to],
 				"description": task.subject,
 			})
+			record_event(
+				task.name,
+				"Assigned",
+				actor=doc.owner,
+				new_value=doc.allocated_to,
+				notes=f"Assigned from {doc.reference_type} {doc.reference_name}.",
+				dedupe_key=f"todo-assignment:{doc.name}:{doc.allocated_to}",
+			)
 			try:
 				from taskist.push import send_push_to_user
 
@@ -107,13 +136,28 @@ def sync_todo_assignment(doc, method=None):
 		frappe.flags.in_taskist_assignment_sync = False
 
 
-def close_source_todo_for_task(task):
+def set_source_todo_status_for_task(task, status):
 	if not getattr(task, "taskist_reference_todo", None):
 		return
 	if not frappe.db.exists("ToDo", task.taskist_reference_todo):
 		return
 
 	todo = frappe.get_doc("ToDo", task.taskist_reference_todo)
-	if todo.status != "Closed":
-		todo.status = "Closed"
+	if todo.status == status:
+		return
+
+	previous_sync_flag = getattr(frappe.flags, "in_taskist_assignment_sync", False)
+	frappe.flags.in_taskist_assignment_sync = True
+	try:
+		todo.status = status
 		todo.save(ignore_permissions=True)
+	finally:
+		frappe.flags.in_taskist_assignment_sync = previous_sync_flag
+
+
+def close_source_todo_for_task(task):
+	set_source_todo_status_for_task(task, "Closed")
+
+
+def cancel_source_todo_for_task(task):
+	set_source_todo_status_for_task(task, "Cancelled")

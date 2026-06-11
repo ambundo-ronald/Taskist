@@ -6,10 +6,6 @@ const routes = [
 		redirect: '/kanban',
 	},
 	{
-		path: '/:pathMatch(.*)*',
-		redirect: '/kanban',
-	},
-	{
 		path: '/kanban',
 		name: 'Kanban',
 		component: () => import('@/views/KanbanView.vue'),
@@ -28,6 +24,35 @@ const routes = [
 		path: '/summary',
 		name: 'Summary',
 		component: () => import('@/views/DailySummary.vue'),
+	},
+	{
+		path: '/review',
+		name: 'Daily Review',
+		component: () => import('@/views/DailyReview.vue'),
+	},
+	{
+		path: '/analytics',
+		name: 'Analytics',
+		component: () => import('@/views/AnalyticsView.vue'),
+	},
+	{
+		path: '/pilot',
+		name: 'Department Pilot',
+		component: () => import('@/views/PilotView.vue'),
+	},
+	{
+		path: '/governance',
+		name: 'Governance',
+		component: () => import('@/views/GovernanceView.vue'),
+	},
+	{
+		path: '/health',
+		name: 'System Health',
+		component: () => import('@/views/HealthView.vue'),
+	},
+	{
+		path: '/:pathMatch(.*)*',
+		redirect: '/kanban',
 	},
 ]
 

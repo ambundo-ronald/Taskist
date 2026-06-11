@@ -2,7 +2,7 @@
 	<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 md:px-6 flex items-center">
 		<nav class="flex gap-1 overflow-x-auto">
 			<router-link
-				v-for="tab in tabs"
+				v-for="tab in visibleTabs"
 				:key="tab.route"
 				:to="tab.route"
 				class="px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
@@ -60,7 +60,18 @@ const tabs = [
 	{ label: 'List', route: '/list' },
 	{ label: 'Calendar', route: '/calendar' },
 	{ label: 'Summary', route: '/summary' },
+	{ label: 'Daily Review', route: '/review' },
+	{ label: 'Analytics', route: '/analytics' },
+	{ label: 'Pilot', route: '/pilot' },
+	{ label: 'Governance', route: '/governance' },
+	{ label: 'Health', route: '/health' },
 ]
+
+const visibleTabs = computed(() =>
+	tabs.filter(tab =>
+		!['/analytics', '/pilot', '/governance', '/health'].includes(tab.route) || taskStore.accessScope.view_all_tasks
+	),
+)
 
 function isActive(path: string) {
 	return route.path === path

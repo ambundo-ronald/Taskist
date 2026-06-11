@@ -1,0 +1,146 @@
+{
+ "actions": [],
+ "autoname": "field:event_key",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event_key",
+  "pilot",
+  "process_rule",
+  "department",
+  "mode",
+  "outcome",
+  "reference_doctype",
+  "reference_name",
+  "trigger_event",
+  "task",
+  "assignees_json",
+  "observed_on",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Event Key",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "pilot",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Pilot",
+   "options": "Taskist Process Pilot",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "process_rule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Process Rule",
+   "options": "Taskist Process Rule",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Mode",
+   "options": "Shadow\nOperational",
+   "reqd": 1
+  },
+  {
+   "fieldname": "outcome",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Outcome",
+   "options": "Shadow Match\nTask Created\nExisting Task\nNo Assignee\nError",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Source DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Source Document",
+   "options": "reference_doctype",
+   "reqd": 1
+  },
+  {
+   "fieldname": "trigger_event",
+   "fieldtype": "Data",
+   "label": "Trigger Event"
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Link",
+   "label": "Created Task",
+   "options": "Task"
+  },
+  {
+   "fieldname": "assignees_json",
+   "fieldtype": "Long Text",
+   "label": "Resolved Assignees",
+   "read_only": 1
+  },
+  {
+   "fieldname": "observed_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Observed On",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Pilot Observation",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Taskist Manager"
+  },
+  {
+   "read": 1,
+   "role": "Taskist Auditor"
+  }
+ ],
+ "sort_field": "observed_on",
+ "sort_order": "DESC"
+}

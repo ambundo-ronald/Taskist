@@ -1,7 +1,7 @@
 <template>
 	<div
 		class="bg-white dark:bg-gray-800 rounded-lg border p-3 cursor-pointer hover:shadow-md transition-shadow"
-		:class="cardBorderClass"
+		:class="[cardBorderClass, isCancelled ? 'opacity-60' : '']"
 		@click="taskStore.selectTask(task)"
 	>
 		<div class="flex items-start gap-2">
@@ -19,7 +19,12 @@
 					</button>
 					<FeatherIcon v-if="task.is_group" name="folder" class="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Group task" />
 					<FeatherIcon v-if="task.is_milestone" name="star" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" title="Milestone" />
-					<p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ task.subject }}</p>
+					<p
+						class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+						:class="isCancelled ? 'line-through text-gray-500 dark:text-gray-400' : ''"
+					>
+						{{ task.subject }}
+					</p>
 					<FeatherIcon v-if="task.taskist_is_recurring" name="refresh-cw" class="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Recurring task" />
 					<a
 						v-if="sourceUrl"
@@ -134,9 +139,10 @@ const tags = computed(() => {
 })
 
 const sourceUrl = computed(() => documentUrl(props.task.taskist_reference_doctype, props.task.taskist_reference_name))
+const isCancelled = computed(() => props.task.status === 'Cancelled')
 
 const isOverdue = computed(() => {
-	if (!props.task.exp_end_date) return false
+	if (!props.task.exp_end_date || ['Completed', 'Cancelled'].includes(props.task.status)) return false
 	return dayjs(props.task.exp_end_date).isBefore(dayjs(), 'day')
 })
 

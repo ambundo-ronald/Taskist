@@ -23,20 +23,23 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Event Key",
+   "search_index": 1,
    "reqd": 1
   },
   {
    "fieldname": "tracker",
    "fieldtype": "Link",
    "label": "SLA Tracker",
-   "options": "Taskist SLA Tracker"
+   "options": "Taskist SLA Tracker",
+   "search_index": 1
   },
   {
    "fieldname": "task",
    "fieldtype": "Link",
    "label": "Task",
    "options": "Task",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "recipient",
@@ -72,8 +75,9 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nSent\nFailed",
-   "reqd": 1
+   "options": "Pending\nSent\nFailed\nCancelled",
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "default": "0",

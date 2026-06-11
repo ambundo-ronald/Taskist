@@ -41,6 +41,13 @@ async function handleMove(payload: { taskName: string; column: string; index: nu
 	const task = taskStore.tasks.find(t => t.name === payload.taskName)
 	if (!task) return
 	const oldStatus = task.status
+	const requiresExplanation =
+		(payload.column === 'Completed' && task._sla_status === 'Breached')
+		|| (oldStatus === 'Pending Review' && ['Open', 'Working'].includes(payload.column))
+	if (requiresExplanation) {
+		taskStore.selectTask(task)
+		return
+	}
 	const children = taskStore.childrenMap[task.name] || []
 	// Collect children whose status matches BEFORE any optimistic updates
 	const matchingChildNames = children

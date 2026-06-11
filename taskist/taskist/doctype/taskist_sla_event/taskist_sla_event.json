@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event_type",
+  "event_time",
+  "task",
+  "tracker",
+  "reference_doctype",
+  "reference_name",
+  "process_rule",
+  "department",
+  "actor",
+  "previous_value",
+  "new_value",
+  "notes",
+  "event_key",
+  "metadata_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Event Type",
+   "options": "Created\nAssigned\nUnassigned\nReassigned\nAcknowledged\nStarted\nStatus Changed\nReview Requested\nReviewed\nReturned for Correction\nWarning\nResponse Breached\nBreached\nEscalated\nManual Escalation\nNotification Sent\nNotification Failed\nPause Requested\nPaused\nPause Rejected\nResumed\nExtension Requested\nExtension Approved\nExtension Rejected\nCompleted\nReopened\nCancelled\nComment Added\nAttachment Added\nAttachment Removed\nSLA Started\nChecklist Updated\nOutput Approved\nHandoff Started\nHandoff Received\nRework Requested",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Event Time",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "task",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Task",
+   "options": "Task",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "tracker",
+   "fieldtype": "Link",
+   "label": "SLA Tracker",
+   "options": "Taskist SLA Tracker",
+   "search_index": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "process_rule",
+   "fieldtype": "Link",
+   "label": "Process Rule",
+   "options": "Taskist Process Rule",
+   "search_index": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Data",
+   "label": "Department"
+  },
+  {
+   "fieldname": "actor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Actor",
+   "options": "User"
+  },
+  {
+   "fieldname": "previous_value",
+   "fieldtype": "Small Text",
+   "label": "Previous Value"
+  },
+  {
+   "fieldname": "new_value",
+   "fieldtype": "Small Text",
+   "label": "New Value"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "event_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Event Key",
+   "unique": 1
+  },
+  {
+   "fieldname": "metadata_json",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Metadata JSON"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist SLA Event",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Taskist Manager"
+  },
+  {
+   "read": 1,
+   "role": "Taskist Auditor"
+  }
+ ],
+ "sort_field": "event_time",
+ "sort_order": "DESC"
+}

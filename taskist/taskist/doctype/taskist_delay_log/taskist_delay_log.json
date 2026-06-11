@@ -1,0 +1,30 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["task", "tracker", "action", "delay_reason", "notes", "logged_by", "logged_on"],
+ "fields": [
+  {"fieldname": "task", "fieldtype": "Link", "in_list_view": 1, "label": "Task", "options": "Task", "reqd": 1, "search_index": 1},
+  {"fieldname": "tracker", "fieldtype": "Link", "label": "SLA Tracker", "options": "Taskist SLA Tracker"},
+  {"fieldname": "action", "fieldtype": "Select", "in_list_view": 1, "label": "Action", "options": "Breached Completion\nReturned for Correction\nExtension Requested\nExtension Approved\nExtension Rejected\nPause Request\nPause Rejected\nPause Resumed", "reqd": 1},
+  {"fieldname": "delay_reason", "fieldtype": "Link", "in_list_view": 1, "label": "Delay Reason", "options": "Taskist Delay Reason", "reqd": 1},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes", "reqd": 1},
+  {"fieldname": "logged_by", "fieldtype": "Link", "label": "Logged By", "options": "User", "read_only": 1},
+  {"fieldname": "logged_on", "fieldtype": "Datetime", "in_list_view": 1, "label": "Logged On", "read_only": 1, "search_index": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Delay Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {"read": 1, "role": "System Manager"},
+  {"read": 1, "role": "Taskist Manager"}
+ ],
+ "sort_field": "logged_on",
+ "sort_order": "DESC"
+}

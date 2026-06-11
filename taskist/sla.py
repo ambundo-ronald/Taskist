@@ -219,7 +219,7 @@ def _attempt_delivery(event_key, tracker_name, user, channel, title, body, task_
 		delivery.title = title
 		delivery.body = body
 
-	if delivery.status == "Sent" or int(delivery.attempts or 0) >= 5:
+	if delivery.status in ("Sent", "Cancelled") or int(delivery.attempts or 0) >= 5:
 		return True
 
 	delivery.attempts = int(delivery.attempts or 0) + 1
@@ -238,6 +238,23 @@ def _attempt_delivery(event_key, tracker_name, user, channel, title, body, task_
 		delivery.last_error = str(exc)[:500]
 		frappe.log_error(frappe.get_traceback(), "Taskist SLA Notification Delivery")
 	delivery.save(ignore_permissions=True)
+	from taskist.events import record_event
+
+	record_event(
+		task_name,
+		"Notification Sent" if delivery.status == "Sent" else "Notification Failed",
+		tracker=tracker_name,
+		new_value=f"{channel}: {user}",
+		notes=title if delivery.status == "Sent" else delivery.last_error,
+		metadata={
+			"recipient": user,
+			"channel": channel,
+			"title": title,
+			"attempt": delivery.attempts,
+			"delivery": delivery.name,
+		},
+		dedupe_key=f"delivery:{delivery.name}:{delivery.attempts}:{delivery.status}",
+	)
 	return delivery.status == "Sent" or int(delivery.attempts or 0) >= 5
 
 
@@ -260,7 +277,7 @@ def _deliver(users, channel, title, body, task_name, event_key, tracker_name=Non
 
 
 def retry_failed_deliveries():
-	"""Retry failed notification channels independently of tracker state."""
+	"""Retry failed notification channels unless their SLA was cancelled."""
 	retry_before = add_to_date(now_datetime(), minutes=-4, as_datetime=True)
 	names = frappe.get_all(
 		"Taskist Notification Delivery",
@@ -274,6 +291,13 @@ def retry_failed_deliveries():
 	)
 	for name in names:
 		delivery = frappe.get_doc("Taskist Notification Delivery", name)
+		if delivery.tracker:
+			tracker_status = frappe.db.get_value("Taskist SLA Tracker", delivery.tracker, "status")
+			if tracker_status == "Cancelled":
+				delivery.status = "Cancelled"
+				delivery.last_error = None
+				delivery.save(ignore_permissions=True)
+				continue
 		_attempt_delivery(
 			delivery.event_key,
 			delivery.tracker,
@@ -318,13 +342,25 @@ def _escalation_recipients(row, tracker):
 
 
 def ensure_tracker(rule, task):
+	from taskist.governance import is_rule_effective
+
+	if not is_rule_effective(rule):
+		return None
 	tracker_name = _tracker_name(rule.name, task.name)
 	is_new = not frappe.db.exists("Taskist SLA Tracker", tracker_name)
 	tracker = frappe.new_doc("Taskist SLA Tracker") if is_new else frappe.get_doc("Taskist SLA Tracker", tracker_name)
 
 	if is_new:
+		from taskist.governance import current_revision
+
 		tracker.name = tracker_name
 		tracker.rule = rule.name
+		tracker.rule_revision = current_revision(rule)
+		tracker.policy_snapshot_json = frappe.db.get_value(
+			"Taskist Rule Revision",
+			tracker.rule_revision,
+			"configuration_json",
+		)
 		tracker.task = task.name
 		tracker.reference_doctype = task.taskist_reference_doctype
 		tracker.reference_name = task.taskist_reference_name
@@ -337,9 +373,34 @@ def ensure_tracker(rule, task):
 	tracker.response_due_at = response_due_at
 	tracker.warning_at = warning_at
 	tracker.due_at = due_at
-	tracker.status = "Completed" if task.status in DONE_TASK_STATUSES else getattr(tracker, "status", None) or "Open"
+	if task.status in DONE_TASK_STATUSES:
+		tracker.status = task.status
+		tracker.completed_on = tracker.completed_on or now_datetime()
+	elif getattr(tracker, "status", None) in DONE_TASK_STATUSES:
+		tracker.status = "Open"
+		tracker.completed_on = None
+	else:
+		tracker.status = getattr(tracker, "status", None) or "Open"
 	tracker.response_status = getattr(tracker, "response_status", None) or "Pending"
 	tracker.save(ignore_permissions=True)
+	if is_new:
+		from taskist.events import record_event
+
+		record_event(
+			task.name,
+			"SLA Started",
+			tracker=tracker.name,
+			new_value=str(tracker.due_at),
+			notes=f"SLA {rule.name} started with {priority} priority.",
+			metadata={
+				"rule": rule.name,
+				"response_due_at": tracker.response_due_at,
+				"warning_at": tracker.warning_at,
+				"due_at": tracker.due_at,
+			},
+			event_time=start_time,
+			dedupe_key=f"sla-started:{tracker.name}",
+		)
 	return tracker
 
 
@@ -355,6 +416,7 @@ def mark_response_for_task(task):
 	now = now_datetime()
 	for name in trackers:
 		tracker = frappe.get_doc("Taskist SLA Tracker", name)
+		previous_status = tracker.response_status
 		tracker.responded_on = now
 		if tracker.response_status != "Breached":
 			tracker.response_status = (
@@ -363,6 +425,18 @@ def mark_response_for_task(task):
 				else "Breached"
 			)
 		tracker.save(ignore_permissions=True)
+		from taskist.events import record_event
+
+		record_event(
+			task.name,
+			"Acknowledged",
+			tracker=tracker.name,
+			previous_value=previous_status,
+			new_value=tracker.response_status,
+			notes="First SLA response recorded.",
+			event_time=now,
+			dedupe_key=f"acknowledged:{tracker.name}",
+		)
 
 
 def complete_trackers_for_task(task):
@@ -377,7 +451,46 @@ def complete_trackers_for_task(task):
 		tracker = frappe.get_doc("Taskist SLA Tracker", name)
 		tracker.status = "Completed" if task.status == "Completed" else "Cancelled"
 		tracker.completed_on = now_datetime()
+		if tracker.active_pause and frappe.db.exists("Taskist SLA Pause", tracker.active_pause):
+			frappe.db.set_value(
+				"Taskist SLA Pause",
+				tracker.active_pause,
+				{"status": "Cancelled", "resumed_on": now_datetime()},
+				update_modified=False,
+			)
+		tracker.pause_status = "Not Paused"
+		tracker.active_pause = None
 		tracker.save(ignore_permissions=True)
+		extension_names = frappe.get_all(
+			"Taskist SLA Extension",
+			filters={"task": task.name, "status": "Requested"},
+			pluck="name",
+			limit_page_length=100,
+		)
+		for extension_name in extension_names:
+			frappe.db.set_value(
+				"Taskist SLA Extension",
+				extension_name,
+				{"status": "Cancelled", "decided_on": now_datetime()},
+				update_modified=False,
+			)
+		if tracker.status == "Cancelled":
+			delivery_names = frappe.get_all(
+				"Taskist Notification Delivery",
+				filters={
+					"tracker": tracker.name,
+					"status": ["in", ["Pending", "Failed"]],
+				},
+				pluck="name",
+				limit_page_length=500,
+			)
+			for delivery_name in delivery_names:
+				frappe.db.set_value(
+					"Taskist Notification Delivery",
+					delivery_name,
+					{"status": "Cancelled", "last_error": None},
+					update_modified=False,
+				)
 
 
 def _task_matches_rule(rule, task):
@@ -407,6 +520,10 @@ def evaluate_task_against_sla_rules(task):
 	)
 	for rule_name in rules:
 		rule = frappe.get_doc("Taskist SLA Rule", rule_name)
+		from taskist.governance import is_rule_effective
+
+		if not is_rule_effective(rule):
+			continue
 		if _task_matches_rule(rule, task):
 			ensure_tracker(rule, task)
 
@@ -436,13 +553,30 @@ def _evaluate_escalations(rule, tracker, now):
 			title,
 			body,
 			tracker.task,
-			f"taskist-sla-{key}-{tracker.name}",
+			f"taskist-sla-{key}-{tracker.name}-{trigger_at}",
 			tracker.name,
 		)
 		if not delivered:
 			continue
 		sent.add(key)
 		tracker.current_escalation_level = max(int(tracker.current_escalation_level or 0), int(row.level or 0))
+		from taskist.events import record_event
+
+		record_event(
+			tracker.task,
+			"Escalated",
+			tracker=tracker.name,
+			new_value=f"Level {row.level}",
+			notes=f"{row.trigger} escalation sent through {row.channel}.",
+			metadata={
+				"trigger": row.trigger,
+				"level": row.level,
+				"recipient_type": row.recipient_type,
+				"recipient": row.recipient,
+				"channel": row.channel,
+			},
+			dedupe_key=f"escalation:{tracker.name}:{key}",
+		)
 		changed = True
 	if changed:
 		tracker.escalations_sent_json = json.dumps(sorted(sent))
@@ -458,6 +592,10 @@ def evaluate_sla_rules():
 	)
 	for rule_name in rules:
 		rule = frappe.get_doc("Taskist SLA Rule", rule_name)
+		from taskist.governance import is_rule_effective
+
+		if not is_rule_effective(rule):
+			continue
 		try:
 			filters = _loads_filters(rule.conditions_json)
 		except Exception:
@@ -510,6 +648,18 @@ def evaluate_open_trackers():
 		if tracker.response_status == "Pending" and tracker.response_due_at:
 			if get_datetime(tracker.response_due_at) <= now:
 				tracker.response_status = "Breached"
+				from taskist.events import record_event
+
+				record_event(
+					tracker.task,
+					"Response Breached",
+					tracker=tracker.name,
+					previous_value="Pending",
+					new_value="Breached",
+					notes="First response target was exceeded.",
+					event_time=now,
+					dedupe_key=f"response-breached:{tracker.name}:{tracker.response_due_at}",
+				)
 		if tracker.response_status == "Breached" and rule.notify_on_breach and not tracker.response_breach_sent_on:
 			delivered = _deliver(
 				assignees,
@@ -517,7 +667,7 @@ def evaluate_open_trackers():
 				"First response SLA breached",
 				f"{tracker.task} has passed its first response target.",
 				tracker.task,
-				f"taskist-sla-response-breach-{tracker.name}",
+				f"taskist-sla-response-breach-{tracker.name}-{tracker.response_due_at}",
 				tracker.name,
 			)
 			if delivered:
@@ -525,8 +675,21 @@ def evaluate_open_trackers():
 
 		if tracker.due_at and get_datetime(tracker.due_at) <= now:
 			if tracker.status != "Breached":
+				previous_status = tracker.status
 				tracker.status = "Breached"
 				tracker.breached_on = now
+				from taskist.events import record_event
+
+				record_event(
+					tracker.task,
+					"Breached",
+					tracker=tracker.name,
+					previous_value=previous_status,
+					new_value="Breached",
+					notes="Resolution target was exceeded.",
+					event_time=now,
+					dedupe_key=f"resolution-breached:{tracker.name}:{tracker.due_at}",
+				)
 			if rule.notify_on_breach and not tracker.breach_sent_on:
 				delivered = _deliver(
 					assignees,
@@ -534,7 +697,7 @@ def evaluate_open_trackers():
 					"SLA breached",
 					f"{tracker.task} has passed its resolution target.",
 					tracker.task,
-					f"taskist-sla-breach-{tracker.name}",
+					f"taskist-sla-breach-{tracker.name}-{tracker.due_at}",
 					tracker.name,
 				)
 				if delivered:
@@ -542,6 +705,18 @@ def evaluate_open_trackers():
 		elif tracker.warning_at and get_datetime(tracker.warning_at) <= now:
 			if tracker.status == "Open":
 				tracker.status = "Warning"
+				from taskist.events import record_event
+
+				record_event(
+					tracker.task,
+					"Warning",
+					tracker=tracker.name,
+					previous_value="Open",
+					new_value="Warning",
+					notes="SLA warning threshold reached.",
+					event_time=now,
+					dedupe_key=f"warning:{tracker.name}:{tracker.warning_at}",
+				)
 			if rule.notify_on_warning and not tracker.warning_sent_on:
 				delivered = _deliver(
 					assignees,
@@ -549,7 +724,7 @@ def evaluate_open_trackers():
 					"SLA warning",
 					f"{tracker.task} is approaching its resolution target.",
 					tracker.task,
-					f"taskist-sla-warning-{tracker.name}",
+					f"taskist-sla-warning-{tracker.name}-{tracker.warning_at}",
 					tracker.name,
 				)
 				if delivered:

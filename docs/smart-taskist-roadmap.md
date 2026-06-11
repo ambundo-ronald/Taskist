@@ -2,6 +2,334 @@
 
 Taskist can become an activity layer over ERPNext documents, not only a Project Task UI.
 
+## Implementation Backlog
+
+Implement the operational flow-control system in small releases. Each phase should be deployed,
+tested with real users, and signed off before the next phase becomes operational.
+
+### Phase 0: Stabilize the Task and SLA Foundation
+
+Status: Mostly complete. Deploy and verify before starting Phase 1.
+
+- [x] Use ERPNext `Task` as the single work item.
+- [x] Create tasks from Frappe document assignments.
+- [x] Link generated tasks to the exact source document.
+- [x] Synchronize completion and cancellation with the linked assignment.
+- [x] Apply assignment-based RBAC and delegated access profiles.
+- [x] Define SLA priority targets, working hours, holidays, and escalation matrices.
+- [x] Support push, email, and in-app SLA notifications.
+- [x] Audit notification delivery and retry temporary failures.
+- [ ] Deploy the latest changes and run `bench migrate`.
+- [ ] Verify the scheduler runs every five minutes.
+- [ ] Test assignment, completion, cancellation, RBAC, SLA breach, and notification delivery with
+      two ordinary users and one manager.
+- [ ] Document the production roles, access profiles, VAPID settings, and scheduler owner.
+
+Acceptance criteria:
+
+- An assigned document appears in the assignee's Taskist list and opens the correct source document.
+- Completion or cancellation is reflected immediately on the linked assignment and SLA tracker.
+- Ordinary users cannot read or update another user's private tasks.
+- A short test SLA produces one warning, one breach, and the configured escalation notifications.
+
+### Phase 1: Process Rule Engine
+
+Goal: Create tasks from business events without requiring someone to assign the source document
+manually.
+
+Status: Engine implemented locally. Deployment, migration, and pilot rules remain.
+
+Create a `Taskist Process Rule` DocType with:
+
+- [x] Rule name, enabled flag, department, process code, and description.
+- [x] Trigger DocType and trigger event.
+- [x] Optional workflow-state transition and conditions.
+- [x] Task subject template, description template, priority, and project mapping.
+- [x] Assignment strategy: fixed user, role, source field, document owner, or round robin.
+- [x] Linked `Taskist SLA Rule`.
+- [x] Required output description and completion condition.
+- [x] Duplicate policy and idempotency key.
+
+Build the runtime:
+
+- [x] Add generic document hooks that evaluate enabled process rules.
+- [x] Create one source-linked Task when a rule matches.
+- [x] Prevent duplicate tasks when the same event is received more than once.
+- [x] Store the matched process rule and trigger event on the Task.
+- [x] Re-evaluate assignment when the configured source field changes.
+- [x] Add a rule simulator that shows whether a document would match before enabling a rule.
+- [x] Log rule evaluation errors without blocking the source transaction.
+
+Pilot rules:
+
+- [ ] Material Request approved -> RFQ Issuance.
+- [ ] Sales Order confirmed -> Job Opening.
+- [ ] Issue created -> Ticket Acknowledgement.
+- [ ] Purchase Receipt submitted -> GRN Posting.
+- [ ] Expense Claim submitted -> Expense Approval.
+
+Acceptance criteria:
+
+- Each pilot event creates exactly one correctly assigned Task.
+- The Task receives the configured SLA and opens the triggering document.
+- Re-saving the document does not create a duplicate Task.
+
+### Phase 2: Delay, Pause, and Exception Management
+
+Goal: Explain delays fairly and distinguish controllable waiting from approved external waiting.
+
+Status: Phase 2 is implemented locally. Production migration and multi-user verification remain.
+
+Create:
+
+- [x] `Taskist Delay Reason` master with category, responsible party, pause eligibility, and evidence
+      requirement.
+- [x] `Taskist SLA Pause` runtime record with task, tracker, reason, start, end, requester, approver,
+      notes, and evidence through Task attachments.
+- [x] Delay categories for internal, customer, supplier, stock, finance, technical, and system delays.
+
+Implement:
+
+- [x] Require a delay reason when completing a breached task.
+- [x] Require a reason when extending a due date or returning work for correction.
+- [x] Allow SLA pauses only for approved reason categories.
+- [x] Require manager approval for SLA pauses.
+- [x] Require manager approval for deadline extensions.
+- [x] Recalculate response, warning, and resolution deadlines after an approved pause.
+- [x] Prevent cancelled tasks from reopening notification retries.
+- [x] Display pause state and delay ownership in Taskist.
+- [x] Enforce Task attachments for delay reasons configured as evidence-required.
+- [x] Report pending approvals, stale pauses, missing delay reasons, and missing evidence as
+      compliance exceptions.
+
+Acceptance criteria:
+
+- A breached task cannot be closed silently.
+- Approved external delays pause the clock and preserve the original target.
+- Internal waiting remains part of SLA performance unless an authorized exception is approved.
+
+### Phase 3: SLA Event and Audit Timeline
+
+Goal: Make every important task and SLA transition measurable and explainable.
+
+Status: Phase 3 is implemented locally. Production migration and operational verification remain.
+
+Create `Taskist SLA Event` with:
+
+- [x] Event type, task, tracker, source document, timestamp, actor, previous value, new value, and notes.
+- [x] Event types for created, assigned, acknowledged, started, paused, resumed, reassigned, warned,
+      breached, escalated, reviewed, completed, reopened, and cancelled.
+- [x] Immutable records after insertion, except by System Manager during controlled maintenance.
+
+Implement:
+
+- [x] Record events from Task, ToDo, workflow, SLA, escalation, and notification handlers.
+- [x] Add a unified timeline to the Task detail view.
+- [x] Calculate active work time, waiting time, paused time, and handoff time.
+- [x] Expose an exportable audit report by process, department, task, and source document.
+
+Acceptance criteria:
+
+- A manager can reconstruct who owned the work, what changed, why it was delayed, and who was
+  notified without reading server logs.
+
+### Phase 4: Process Handoffs and Output Validation
+
+Goal: Move work between departments automatically without informal follow-up.
+
+Status: Phase 4 engine is implemented locally. Process configuration, migration, and an end-to-end
+department pilot remain.
+
+Extend `Taskist Process Rule` with:
+
+- [x] Completion output type: document created, workflow state reached, field populated, checklist
+      completed, attachment uploaded, or manager approval.
+- [x] Next process rule or next task template.
+- [x] Handoff assignee strategy and SLA.
+- [x] Rejection and rework route.
+
+Implement:
+
+- [x] Validate the required output before a task can be completed.
+- [x] Create the next task only after successful completion.
+- [x] Carry source-document context through the process chain.
+- [x] Record handoff start and acceptance times.
+- [x] Return incomplete work to the previous owner with a reason and rework SLA.
+- [x] Show the complete process chain from the current Task.
+
+First end-to-end flow:
+
+- [ ] Sales Order confirmed.
+- [ ] Job Opening.
+- [ ] BOM or BOQ confirmation.
+- [ ] Material Request.
+- [ ] Procurement and material issuance.
+- [ ] Assembly and QA.
+- [ ] Dispatch and site execution.
+- [ ] Commissioning and handover.
+- [ ] Job costing and invoicing.
+- [ ] Project closure.
+
+Acceptance criteria:
+
+- Completing one stage creates the correct next responsibility automatically.
+- Work cannot advance without its configured output evidence.
+- Rework is visible and measured separately from normal processing.
+
+### Phase 5: Operational Views and Daily Control
+
+Goal: Give employees and managers actionable queues rather than passive reports.
+
+Status: Phase 5 operational controls are implemented locally. Department-specific saved views and
+production user testing remain.
+
+- [x] Add My Tasks, Shared Tasks, Team Tasks, Escalated Tasks, and Waiting on Others views.
+- [x] Add Green, Amber, Red, and Escalated SLA filters.
+- [x] Add department, process, priority, delay owner, and ageing filters.
+- [x] Build a daily SLA review view showing overdue work, blockers, owners, and next actions.
+- [x] Add bulk reassignment and approved escalation actions for managers.
+- [x] Add user-defined saved operational views; Finance, Procurement, Service, Operations, and
+      Stores presets remain to be configured in production.
+- [x] Add mobile-friendly acknowledgement, delay reason, evidence upload, and completion actions.
+
+Acceptance criteria:
+
+- The daily SLA meeting can be run entirely from Taskist in 15 minutes.
+- Every reviewed item has an owner, next action, deadline, and visible escalation state.
+
+### Phase 6: KPI and MUDA Analytics
+
+Goal: Measure flow efficiency and expose recurring waste rather than merely counting overdue tasks.
+
+Status: Phase 6 analytics are implemented locally. Production migration, the first monthly
+snapshot, and KPI validation against real department data remain.
+
+Build metrics for:
+
+- [x] SLA compliance rate by process, department, priority, and period.
+- [x] First response and resolution performance.
+- [x] Average processing, waiting, pause, rework, and handoff times.
+- [x] Breach count and breach duration.
+- [x] Delay reasons and responsible-party trends.
+- [x] Repeat breaches by process and workflow state.
+- [x] Volume, backlog ageing, throughput, and completion trend.
+- [x] Notification delivery health and acknowledgement rate.
+
+Build dashboards:
+
+- [x] Employee operational queue.
+- [x] Department manager scorecard.
+- [x] Executive SLA dashboard.
+- [x] Process bottleneck and department heatmap.
+- [x] Value Stream Mapping report comparing processing time with waiting time.
+- [x] Monthly KPI snapshot so historical results do not change after rule updates.
+
+Acceptance criteria:
+
+- Managers can identify the workflow state causing the most waiting and quantify its impact.
+- KPI calculations separate employee-controlled delay from approved external delay.
+
+### Phase 7: Department Pilot
+
+Goal: Validate the operating model before organization-wide rollout.
+
+Status: Pilot controls are implemented locally. Department selection, real process mapping, the
+live shadow and operational periods, user feedback, and department-owner sign-off remain.
+
+- [x] Add a department pilot record with owner, dates, baseline measures, and no more than five
+      process rules.
+- [x] Add controlled Draft, Shadow, Operational, Completed, and Cancelled pilot states.
+- [x] Make Shadow mode evaluate triggers and assignees without creating Tasks or notifications.
+- [x] Record immutable eligible-event outcomes for shadow matches, created Tasks, prevented
+      duplicates, missing assignees, and runtime errors.
+- [x] Add a pilot scorecard with automation success, duplicate rate, per-rule flow metrics, and
+      readiness gates.
+- [x] Require all readiness gates and sign-off notes before a pilot can be completed.
+- [ ] Select one department with high volume and clear triggers; Procurement or Service is preferred.
+- [ ] Map the real current process with users before configuring rules.
+- [ ] Record baseline lead time, waiting time, rework, and breach rate.
+- [ ] Configure no more than five pilot process rules.
+- [ ] Run shadow mode for one week without consequences.
+- [ ] Correct trigger, assignment, duration, and escalation errors.
+- [ ] Run operational mode for two weeks.
+- [ ] Review user feedback, false escalations, missed tasks, and notification fatigue.
+- [ ] Obtain department-owner sign-off.
+
+Acceptance criteria:
+
+- At least 95% of eligible source events create the expected task.
+- No duplicate task rate above 1%.
+- Managers agree the SLA and delay attribution are fair enough for operational use.
+
+### Phase 8: Governance and Organization Rollout
+
+Goal: Scale the system without encouraging gaming or unfair performance decisions.
+
+Status: Governance controls are implemented locally. Production role decisions, operating
+procedures, training, staged department rollout, and two monthly KPI review cycles remain.
+
+- [x] Assign an owner for each process rule and SLA rule.
+- [x] Add approval and effective dates for rule changes.
+- [x] Version process and SLA rules with immutable configuration revisions.
+- [x] Snapshot the approved SLA revision and complete policy JSON onto each new tracker.
+- [x] Return materially changed approved rules to Draft and disable them until re-approved.
+- [x] Prevent live execution of draft, retired, future, or expired rules.
+- [x] Validate that approved process rules use approved SLA, handoff, and rework rules.
+- [x] Add manager approval, retirement, readiness, and revision-ledger controls.
+- [ ] Define escalation etiquette and notification limits.
+- [ ] Define who may pause, extend, reassign, cancel, or override an SLA.
+- [ ] Publish department-specific operating procedures.
+- [ ] Train users on acknowledgement, evidence, delay reasons, and handoffs.
+- [ ] Roll out Finance, Procurement, Service, Operations, and Stores incrementally.
+- [ ] Review KPI quality for at least two monthly cycles before linking results to formal performance
+      management.
+
+Acceptance criteria:
+
+- Every enabled rule has a business owner, tested trigger, assignee strategy, SLA, escalation path,
+  output standard, and reporting category.
+- Performance decisions use reviewed SLA evidence rather than raw breach counts alone.
+
+### Recommended Execution Order
+
+1. Complete production verification for Phase 0.
+2. Build Phase 1 and pilot five automatic process rules.
+3. Add Phase 2 before SLA results are used for employee accountability.
+4. Add Phase 3 before building executive analytics.
+5. Implement one complete Phase 4 handoff chain.
+6. Build operational views and dashboards from real event data.
+7. Pilot one department, recalibrate, then roll out gradually.
+
+### Phase 9: Production Hardening
+
+Goal: Make failures visible, recovery deliberate, and every change continuously verifiable.
+
+Status: Initial hardening controls are implemented locally. Live Frappe tests, load testing, and
+production operating procedures remain.
+
+- [x] Add static repository validation for Python syntax and DocType JSON.
+- [x] Add GitHub Actions checks for backend validation, frontend type checking, and production build.
+- [x] Record a five-minute scheduler heartbeat.
+- [x] Add a manager System Health view for scheduler, VAPID, push library, notification delivery,
+      stale trackers, and process errors.
+- [x] Add controlled recovery actions for one notification delivery and a full SLA evaluation cycle.
+- [x] Add an idempotent administrator API for replaying a source-document process event.
+- [x] Add database indexes for scheduler, delivery, audit, pilot, and governance query fields.
+- [ ] Add Frappe integration tests for assignment sync, RBAC, cancellation, SLA, escalation,
+      process deduplication, handoff, governance, and recovery.
+- [ ] Move high-volume SLA evaluation and notifications to bounded background jobs.
+- [ ] Replace large in-memory analytics reads with paginated or SQL-level aggregation.
+- [ ] Run load tests with production-like task, event, tracker, and delivery volumes.
+- [ ] Configure alert ownership and a recovery runbook for critical health checks.
+- [ ] Validate backup restoration and disaster recovery on a staging site.
+
+Acceptance criteria:
+
+- Every pull request fails automatically on invalid Python, DocType JSON, frontend types, or build output.
+- Managers can prove the scheduler is running and identify failed notifications or rule errors from Taskist.
+- Recovery actions remain permission-controlled and idempotent.
+- Production-volume SLA cycles finish within the five-minute scheduler interval.
+
 ## Source-Linked Tasks
 
 Taskist should use ERPNext `Task` as the single work item, whether or not it belongs to a Project.
@@ -22,6 +350,7 @@ Suggested first slice:
 - Create a source-linked Task for the assigned user.
 - Mark the Task complete when the related `ToDo` is closed.
 - Let users complete the Task from Taskist, then close/update the linked `ToDo`.
+- Synchronize cancellation in both directions and immediately cancel any active SLA tracker.
 
 ## SLA Engine
 
@@ -136,7 +465,8 @@ Every SLA notification channel attempt is recorded in `Taskist Notification Deli
 
 - Successful recipient/channel combinations are not duplicated.
 - Failed deliveries retry every five minutes.
-- Failed deliveries retry independently even if the Task or SLA tracker is later completed.
+- Failed deliveries retry independently after completion, but are suppressed when the Task or SLA
+  tracker is cancelled.
 - Retries stop after five failed attempts.
 - Push subscriptions returning HTTP 404 or 410 are disabled automatically.
 - In-app notifications create Frappe Notification Log records.

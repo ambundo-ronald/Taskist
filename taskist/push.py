@@ -169,4 +169,5 @@ def get_notification_health():
 		"failed_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Failed"}),
 		"pending_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Pending"}),
 		"sent_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Sent"}),
+		"cancelled_deliveries": frappe.db.count("Taskist Notification Delivery", {"status": "Cancelled"}),
 	}

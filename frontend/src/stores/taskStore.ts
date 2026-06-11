@@ -9,6 +9,7 @@ export interface Task {
 	priority: string
 	project: string
 	parent_task: string
+	owner: string
 	// Dates - YYYY-MM-DD or YYYY-MM-DD HH:MM:SS when time is set
 	exp_start_date: string | null
 	exp_end_date: string | null
@@ -35,6 +36,16 @@ export interface Task {
 	taskist_reference_doctype: string | null
 	taskist_reference_name: string | null
 	taskist_reference_todo: string | null
+	taskist_process_rule: string | null
+	taskist_process_event_key: string | null
+	taskist_process_trigger_event: string | null
+	taskist_process_chain_id: string | null
+	taskist_process_sequence: number | null
+	taskist_previous_process_task: string | null
+	taskist_next_process_task: string | null
+	taskist_manager_approved_by: string | null
+	taskist_manager_approved_on: string | null
+	taskist_checklist_json: string | null
 	_sla_status: string | null
 	_sla_due_at: string | null
 	_sla_warning_at: string | null
@@ -43,6 +54,12 @@ export interface Task {
 	_sla_response_status: string | null
 	_sla_response_due_at: string | null
 	_sla_escalation_level: number
+	_sla_pause_status: string | null
+	_delay_reason: string | null
+	_delay_category: string | null
+	_delay_owner: string | null
+	_department: string | null
+	_manual_escalated: boolean
 	// Virtual / internal fields
 	_assign: string
 	_user_tags: string
@@ -53,7 +70,14 @@ export interface Task {
 }
 
 /** The Task statuses used as kanban columns */
-export const KANBAN_STATUSES = ['Open', 'Working', 'Pending Review', 'Overdue', 'Completed'] as const
+export const KANBAN_STATUSES = [
+	'Open',
+	'Working',
+	'Pending Review',
+	'Overdue',
+	'Completed',
+	'Cancelled',
+] as const
 
 export const useTaskStore = defineStore('tasks', () => {
 	const tasks = ref<Task[]>([])
@@ -66,6 +90,20 @@ export const useTaskStore = defineStore('tasks', () => {
 	const collapsedGroups = ref<Set<string>>(new Set())
 	const nameSort = ref<'none' | 'asc' | 'desc'>('none')
 	const groupFilter = ref<string | null>(null)
+	const activeQueue = ref<'my' | 'shared' | 'team' | 'escalated' | 'waiting' | 'all'>('my')
+	const accessScope = ref<any>({
+		user: '',
+		view_all_tasks: false,
+		manage_all_tasks: false,
+		visible_users: [],
+		manageable_users: [],
+	})
+	const slaFilter = ref('')
+	const priorityFilter = ref('')
+	const processFilter = ref('')
+	const delayOwnerFilter = ref('')
+	const departmentFilter = ref('')
+	const ageingFilter = ref('')
 
 	function toggleNameSort() {
 		if (nameSort.value === 'none') nameSort.value = 'asc'
@@ -105,6 +143,52 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	const filteredTasks = computed(() => {
 		let result = tasks.value
+		const currentUser = accessScope.value.user
+		if (activeQueue.value === 'my') {
+			result = result.filter(t => {
+				const assignees = assigneesFor(t)
+				return assignees.includes(currentUser) || (!assignees.length && t.owner === currentUser)
+			})
+		} else if (activeQueue.value === 'shared') {
+			result = result.filter(t => {
+				const assignees = assigneesFor(t)
+				return assignees.includes(currentUser) && assignees.length > 1
+			})
+		} else if (activeQueue.value === 'team') {
+			result = result.filter(t => {
+				const assignees = assigneesFor(t)
+				return assignees.some(user => user !== currentUser)
+			})
+		} else if (activeQueue.value === 'escalated') {
+			result = result.filter(t =>
+				t._sla_status === 'Breached'
+				|| (t._sla_escalation_level || 0) > 0
+				|| t._manual_escalated,
+			)
+		} else if (activeQueue.value === 'waiting') {
+			result = result.filter(t =>
+				t.status === 'Pending Review'
+				|| t._sla_pause_status === 'Paused'
+				|| !!t._delay_reason,
+			)
+		}
+		if (slaFilter.value) {
+			result = result.filter(t => {
+				if (slaFilter.value === 'Green') return !t._sla_status || ['Open', 'Completed'].includes(t._sla_status)
+				if (slaFilter.value === 'Amber') return t._sla_status === 'Warning'
+				if (slaFilter.value === 'Red') return t._sla_status === 'Breached'
+				if (slaFilter.value === 'Escalated') return (t._sla_escalation_level || 0) > 0 || t._manual_escalated
+				return true
+			})
+		}
+		if (priorityFilter.value) result = result.filter(t => t.priority === priorityFilter.value)
+		if (processFilter.value) result = result.filter(t => t.taskist_process_rule === processFilter.value)
+		if (delayOwnerFilter.value) result = result.filter(t => t._delay_owner === delayOwnerFilter.value)
+		if (departmentFilter.value) result = result.filter(t => t._department === departmentFilter.value)
+		if (ageingFilter.value) {
+			const threshold = Number(ageingFilter.value)
+			result = result.filter(t => (Date.now() - new Date(t.creation).getTime()) / 3600000 >= threshold)
+		}
 		if (searchQuery.value) {
 			const q = searchQuery.value.toLowerCase()
 			result = result.filter(t => t.subject.toLowerCase().includes(q))
@@ -115,6 +199,11 @@ export const useTaskStore = defineStore('tasks', () => {
 		}
 		return result
 	})
+
+	function assigneesFor(task: Task) {
+		if (!task._assign) return []
+		try { return JSON.parse(task._assign) as string[] } catch { return [] }
+	}
 
 	/** Group tasks by status for kanban view */
 	const tasksByStatus = computed(() => {
@@ -127,7 +216,7 @@ export const useTaskStore = defineStore('tasks', () => {
 			if (columns[status]) {
 				columns[status].push(task)
 			} else {
-				// Tasks with statuses not in KANBAN_STATUSES (e.g. Cancelled, Template) go to Open
+				// Unknown statuses such as Template remain visible in Open.
 				columns['Open'].push(task)
 			}
 		}
@@ -188,6 +277,27 @@ export const useTaskStore = defineStore('tasks', () => {
 		}
 	}
 
+	async function fetchAccessScope() {
+		try {
+			accessScope.value = await call('taskist.api.get_access_scope')
+			if (
+				!accessScope.value.view_all_tasks
+				&& accessScope.value.visible_users.length <= 1
+				&& ['team', 'all'].includes(activeQueue.value)
+			) {
+				activeQueue.value = 'my'
+			}
+		} catch {
+			accessScope.value = {
+				user: '',
+				view_all_tasks: false,
+				manage_all_tasks: false,
+				visible_users: [],
+				manageable_users: [],
+			}
+		}
+	}
+
 	async function quickCreate(data: {
 		subject: string
 		project?: string
@@ -244,9 +354,11 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	return {
 		tasks, loading, error, selectedTask, showDetail, filters, searchQuery,
-		collapsedGroups, allCollapsed, nameSort, groupFilter,
+		collapsedGroups, allCollapsed, nameSort, groupFilter, activeQueue, accessScope,
+		slaFilter, priorityFilter, processFilter, delayOwnerFilter,
+		departmentFilter, ageingFilter,
 		filteredTasks, tasksByStatus, childrenMap, hierarchicalTasks,
-		fetchTasks, quickCreate, updateTaskStatus, selectTask, closeDetail,
+		fetchTasks, fetchAccessScope, quickCreate, updateTaskStatus, selectTask, closeDetail,
 		toggleCollapse, isCollapsed, collapseAllGroups, expandAllGroups, toggleNameSort,
 		toggleGroupFilter, moveGroupWithChildren,
 	}

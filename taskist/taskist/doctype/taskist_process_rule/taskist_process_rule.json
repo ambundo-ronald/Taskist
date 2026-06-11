@@ -1,0 +1,382 @@
+{
+ "actions": [],
+ "autoname": "field:rule_name",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_name",
+  "enabled",
+  "governance_section",
+  "approval_status",
+  "business_owner",
+  "effective_from",
+  "effective_to",
+  "approved_by",
+  "approved_on",
+  "change_reason",
+  "current_version",
+  "process_code",
+  "department",
+  "description",
+  "trigger_section",
+  "reference_doctype",
+  "trigger_event",
+  "conditions_json",
+  "workflow_state_field",
+  "workflow_from_state",
+  "workflow_to_state",
+  "task_section",
+  "subject_template",
+  "description_template",
+  "priority",
+  "project_field",
+  "sla_rule",
+  "output_standard",
+  "completion_output_type",
+  "output_doctype",
+  "output_link_field",
+  "output_field",
+  "output_expected_value",
+  "completion_checklist_json",
+  "required_attachment_extension",
+  "completion_condition_json",
+  "assignment_section",
+  "assignment_strategy",
+  "assigned_user",
+  "assigned_role",
+  "assignee_field",
+  "duplicate_policy",
+  "handoff_section",
+  "next_process_rule",
+  "handoff_assignment_strategy",
+  "handoff_assigned_user",
+  "handoff_assigned_role",
+  "handoff_assignee_field",
+  "handoff_sla_rule",
+  "rework_process_rule",
+  "rework_sla_rule"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {"fieldname": "governance_section", "fieldtype": "Section Break", "label": "Governance"},
+  {"default": "Draft", "fieldname": "approval_status", "fieldtype": "Select", "in_list_view": 1, "label": "Approval Status", "options": "Draft\nApproved\nRetired", "read_only": 1},
+  {"fieldname": "business_owner", "fieldtype": "Link", "label": "Business Owner", "options": "User"},
+  {"fieldname": "effective_from", "fieldtype": "Datetime", "label": "Effective From"},
+  {"fieldname": "effective_to", "fieldtype": "Datetime", "label": "Effective To"},
+  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Approved By", "options": "User", "read_only": 1},
+  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "Approved On", "read_only": 1},
+  {"fieldname": "change_reason", "fieldtype": "Small Text", "label": "Change Reason"},
+  {"default": "0", "fieldname": "current_version", "fieldtype": "Int", "label": "Current Version", "read_only": 1},
+  {
+   "fieldname": "process_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Process Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "trigger_section",
+   "fieldtype": "Section Break",
+   "label": "Trigger"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trigger DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "trigger_event",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Trigger Event",
+   "options": "After Insert\nOn Update\nOn Submit\nOn Cancel\nWorkflow State Change",
+   "reqd": 1
+  },
+  {
+   "description": "Optional Frappe filters as JSON.",
+   "fieldname": "conditions_json",
+   "fieldtype": "Code",
+   "label": "Conditions JSON",
+   "options": "JSON"
+  },
+  {
+   "default": "workflow_state",
+   "depends_on": "eval:doc.trigger_event == 'Workflow State Change'",
+   "fieldname": "workflow_state_field",
+   "fieldtype": "Data",
+   "label": "Workflow State Field"
+  },
+  {
+   "depends_on": "eval:doc.trigger_event == 'Workflow State Change'",
+   "fieldname": "workflow_from_state",
+   "fieldtype": "Data",
+   "label": "From State"
+  },
+  {
+   "depends_on": "eval:doc.trigger_event == 'Workflow State Change'",
+   "fieldname": "workflow_to_state",
+   "fieldtype": "Data",
+   "label": "To State"
+  },
+  {
+   "fieldname": "task_section",
+   "fieldtype": "Section Break",
+   "label": "Generated Task"
+  },
+  {
+   "description": "Jinja template. Example: Review {{ doc.name }} for {{ doc.customer_name }}",
+   "fieldname": "subject_template",
+   "fieldtype": "Data",
+   "label": "Subject Template",
+   "reqd": 1
+  },
+  {
+   "description": "Optional Jinja template for the Task description.",
+   "fieldname": "description_template",
+   "fieldtype": "Text Editor",
+   "label": "Description Template"
+  },
+  {
+   "default": "Medium",
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "label": "Priority",
+   "options": "Urgent\nHigh\nMedium\nLow",
+   "reqd": 1
+  },
+  {
+   "description": "Optional source-document field containing a Project name.",
+   "fieldname": "project_field",
+   "fieldtype": "Data",
+   "label": "Project Field"
+  },
+  {
+   "fieldname": "sla_rule",
+   "fieldtype": "Link",
+   "label": "SLA Rule",
+   "options": "Taskist SLA Rule"
+  },
+  {
+   "fieldname": "output_standard",
+   "fieldtype": "Small Text",
+   "label": "Required Output"
+  },
+  {
+   "default": "None",
+   "fieldname": "completion_output_type",
+   "fieldtype": "Select",
+   "label": "Completion Output Type",
+   "options": "None\nDocument Created\nWorkflow State Reached\nField Populated\nChecklist Completed\nAttachment Uploaded\nManager Approval",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.completion_output_type == 'Document Created'",
+   "fieldname": "output_doctype",
+   "fieldtype": "Link",
+   "label": "Output DocType",
+   "options": "DocType"
+  },
+  {
+   "depends_on": "eval:doc.completion_output_type == 'Document Created'",
+   "description": "Field on the output document linking it to the source document name.",
+   "fieldname": "output_link_field",
+   "fieldtype": "Data",
+   "label": "Output Link Field"
+  },
+  {
+   "depends_on": "eval:in_list(['Workflow State Reached', 'Field Populated'], doc.completion_output_type)",
+   "description": "Field on the source document to validate.",
+   "fieldname": "output_field",
+   "fieldtype": "Data",
+   "label": "Output Field"
+  },
+  {
+   "depends_on": "eval:doc.completion_output_type == 'Workflow State Reached'",
+   "fieldname": "output_expected_value",
+   "fieldtype": "Data",
+   "label": "Expected Value"
+  },
+  {
+   "depends_on": "eval:doc.completion_output_type == 'Checklist Completed'",
+   "description": "JSON array of checklist labels copied to each generated Task.",
+   "fieldname": "completion_checklist_json",
+   "fieldtype": "Code",
+   "label": "Completion Checklist JSON",
+   "options": "JSON"
+  },
+  {
+   "depends_on": "eval:doc.completion_output_type == 'Attachment Uploaded'",
+   "description": "Optional file extension such as pdf, xlsx, or jpg. Leave blank to accept any attachment.",
+   "fieldname": "required_attachment_extension",
+   "fieldtype": "Data",
+   "label": "Required Attachment Extension"
+  },
+  {
+   "description": "Optional Frappe filters as JSON. Applied to the source document, or to the output document for Document Created.",
+   "fieldname": "completion_condition_json",
+   "fieldtype": "Code",
+   "label": "Completion Condition JSON",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "assignment_section",
+   "fieldtype": "Section Break",
+   "label": "Assignment"
+  },
+  {
+   "default": "Document Owner",
+   "fieldname": "assignment_strategy",
+   "fieldtype": "Select",
+   "label": "Assignment Strategy",
+   "options": "Fixed User\nRole\nSource Field\nDocument Owner\nRound Robin Role",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.assignment_strategy == 'Fixed User'",
+   "fieldname": "assigned_user",
+   "fieldtype": "Link",
+   "label": "Assigned User",
+   "options": "User"
+  },
+  {
+   "depends_on": "eval:in_list(['Role', 'Round Robin Role'], doc.assignment_strategy)",
+   "fieldname": "assigned_role",
+   "fieldtype": "Link",
+   "label": "Assigned Role",
+   "options": "Role"
+  },
+  {
+   "depends_on": "eval:doc.assignment_strategy == 'Source Field'",
+   "description": "Field on the source document containing a User email.",
+   "fieldname": "assignee_field",
+   "fieldtype": "Data",
+   "label": "Assignee Field"
+  },
+  {
+   "default": "Once Per Document",
+   "fieldname": "duplicate_policy",
+   "fieldtype": "Select",
+   "label": "Duplicate Policy",
+   "options": "Once Per Document\nOnce Per Workflow State",
+   "reqd": 1
+  },
+  {
+   "fieldname": "handoff_section",
+   "fieldtype": "Section Break",
+   "label": "Handoff and Rework"
+  },
+  {
+   "fieldname": "next_process_rule",
+   "fieldtype": "Link",
+   "label": "Next Process Rule",
+   "options": "Taskist Process Rule"
+  },
+  {
+   "default": "Use Next Rule",
+   "depends_on": "next_process_rule",
+   "fieldname": "handoff_assignment_strategy",
+   "fieldtype": "Select",
+   "label": "Handoff Assignment Strategy",
+   "options": "Use Next Rule\nFixed User\nRole\nSource Field\nDocument Owner\nRound Robin Role"
+  },
+  {
+   "depends_on": "eval:doc.next_process_rule && doc.handoff_assignment_strategy == 'Fixed User'",
+   "fieldname": "handoff_assigned_user",
+   "fieldtype": "Link",
+   "label": "Handoff User",
+   "options": "User"
+  },
+  {
+   "depends_on": "eval:doc.next_process_rule && in_list(['Role', 'Round Robin Role'], doc.handoff_assignment_strategy)",
+   "fieldname": "handoff_assigned_role",
+   "fieldtype": "Link",
+   "label": "Handoff Role",
+   "options": "Role"
+  },
+  {
+   "depends_on": "eval:doc.next_process_rule && doc.handoff_assignment_strategy == 'Source Field'",
+   "fieldname": "handoff_assignee_field",
+   "fieldtype": "Data",
+   "label": "Handoff Assignee Field"
+  },
+  {
+   "depends_on": "next_process_rule",
+   "description": "Optional SLA override for the next task.",
+   "fieldname": "handoff_sla_rule",
+   "fieldtype": "Link",
+   "label": "Handoff SLA Rule",
+   "options": "Taskist SLA Rule"
+  },
+  {
+   "fieldname": "rework_process_rule",
+   "fieldtype": "Link",
+   "label": "Rework Process Rule",
+   "options": "Taskist Process Rule"
+  },
+  {
+   "depends_on": "rework_process_rule",
+   "description": "Optional SLA override when creating rework.",
+   "fieldname": "rework_sla_rule",
+   "fieldtype": "Link",
+   "label": "Rework SLA Rule",
+   "options": "Taskist SLA Rule"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Process Rule",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Taskist Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

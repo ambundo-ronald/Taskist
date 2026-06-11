@@ -6,6 +6,8 @@
  "engine": "InnoDB",
  "field_order": [
   "rule",
+  "rule_revision",
+  "policy_snapshot_json",
   "status",
   "task",
   "user",
@@ -23,6 +25,9 @@
   "breach_sent_on",
   "breached_on",
   "completed_on",
+  "pause_status",
+  "active_pause",
+  "total_paused_minutes",
   "current_escalation_level",
   "escalations_sent_json"
  ],
@@ -33,7 +38,8 @@
    "in_list_view": 1,
    "label": "Rule",
    "options": "Taskist SLA Rule",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "default": "Open",
@@ -41,8 +47,9 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Open\nWarning\nBreached\nCompleted\nCancelled",
-   "reqd": 1
+   "options": "Open\nWarning\nBreached\nPaused\nCompleted\nCancelled",
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "task",
@@ -50,7 +57,8 @@
    "in_list_view": 1,
    "label": "Task",
    "options": "Task",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "user",
@@ -86,6 +94,20 @@
    "reqd": 1
   },
   {
+   "fieldname": "rule_revision",
+   "fieldtype": "Link",
+   "label": "Rule Revision",
+   "options": "Taskist Rule Revision",
+   "read_only": 1
+  },
+  {
+   "fieldname": "policy_snapshot_json",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Policy Snapshot JSON",
+   "read_only": 1
+  },
+  {
    "fieldname": "response_due_at",
    "fieldtype": "Datetime",
    "label": "Response Due At"
@@ -117,7 +139,8 @@
    "fieldtype": "Datetime",
    "in_list_view": 1,
    "label": "Due At",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "warning_sent_on",
@@ -138,6 +161,27 @@
    "fieldname": "completed_on",
    "fieldtype": "Datetime",
    "label": "Completed On"
+  },
+  {
+   "default": "Not Paused",
+   "fieldname": "pause_status",
+   "fieldtype": "Select",
+   "label": "Pause Status",
+   "options": "Not Paused\nRequested\nPaused"
+  },
+  {
+   "fieldname": "active_pause",
+   "fieldtype": "Link",
+   "label": "Active Pause",
+   "options": "Taskist SLA Pause",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_paused_minutes",
+   "fieldtype": "Int",
+   "label": "Total Paused Service Minutes",
+   "read_only": 1
   },
   {
    "default": "0",
@@ -169,6 +213,10 @@
    "read": 1,
    "role": "System Manager",
    "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Taskist Manager"
   }
  ],
  "sort_field": "due_at",

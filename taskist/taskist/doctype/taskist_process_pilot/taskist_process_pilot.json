@@ -1,0 +1,177 @@
+{
+ "actions": [],
+ "autoname": "field:pilot_name",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "pilot_name",
+  "department",
+  "status",
+  "pilot_owner",
+  "start_date",
+  "end_date",
+  "shadow_started_on",
+  "operational_started_on",
+  "rules_section",
+  "rules",
+  "baseline_section",
+  "baseline_lead_time_minutes",
+  "baseline_waiting_time_minutes",
+  "baseline_rework_rate",
+  "baseline_breach_rate",
+  "signoff_section",
+  "signed_off_by",
+  "signed_off_on",
+  "signoff_notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "pilot_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Pilot Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nShadow\nOperational\nCompleted\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pilot_owner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Pilot Owner",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fieldname": "shadow_started_on",
+   "fieldtype": "Datetime",
+   "label": "Shadow Started On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "operational_started_on",
+   "fieldtype": "Datetime",
+   "label": "Operational Started On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rules_section",
+   "fieldtype": "Section Break",
+   "label": "Pilot Rules"
+  },
+  {
+   "fieldname": "rules",
+   "fieldtype": "Table",
+   "label": "Process Rules",
+   "options": "Taskist Pilot Rule",
+   "reqd": 1
+  },
+  {
+   "fieldname": "baseline_section",
+   "fieldtype": "Section Break",
+   "label": "Baseline"
+  },
+  {
+   "fieldname": "baseline_lead_time_minutes",
+   "fieldtype": "Float",
+   "label": "Baseline Lead Time (Minutes)"
+  },
+  {
+   "fieldname": "baseline_waiting_time_minutes",
+   "fieldtype": "Float",
+   "label": "Baseline Waiting Time (Minutes)"
+  },
+  {
+   "fieldname": "baseline_rework_rate",
+   "fieldtype": "Percent",
+   "label": "Baseline Rework Rate"
+  },
+  {
+   "fieldname": "baseline_breach_rate",
+   "fieldtype": "Percent",
+   "label": "Baseline Breach Rate"
+  },
+  {
+   "fieldname": "signoff_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-off"
+  },
+  {
+   "fieldname": "signed_off_by",
+   "fieldtype": "Link",
+   "label": "Signed Off By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_off_on",
+   "fieldtype": "Date",
+   "label": "Signed Off On",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.status == 'Completed'",
+   "fieldname": "signoff_notes",
+   "fieldtype": "Small Text",
+   "label": "Sign-off Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Process Pilot",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Taskist Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Taskist Auditor"
+  }
+ ],
+ "sort_field": "start_date",
+ "sort_order": "DESC"
+}

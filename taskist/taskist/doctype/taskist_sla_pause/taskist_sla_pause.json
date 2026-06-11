@@ -1,0 +1,37 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["tracker", "task", "delay_reason", "status", "status_before_pause", "notes", "requested_by", "requested_on", "approved_by", "approved_on", "pause_started_on", "resumed_on", "paused_minutes", "decision_notes"],
+ "fields": [
+  {"fieldname": "tracker", "fieldtype": "Link", "in_list_view": 1, "label": "SLA Tracker", "options": "Taskist SLA Tracker", "reqd": 1},
+  {"fieldname": "task", "fieldtype": "Link", "in_list_view": 1, "label": "Task", "options": "Task", "reqd": 1},
+  {"fieldname": "delay_reason", "fieldtype": "Link", "in_list_view": 1, "label": "Delay Reason", "options": "Taskist Delay Reason", "reqd": 1},
+  {"default": "Requested", "fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "Requested\nActive\nRejected\nResumed\nCancelled", "read_only": 1, "reqd": 1},
+  {"fieldname": "status_before_pause", "fieldtype": "Data", "hidden": 1, "label": "Status Before Pause", "read_only": 1},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Request Notes", "reqd": 1},
+  {"fieldname": "requested_by", "fieldtype": "Link", "label": "Requested By", "options": "User", "read_only": 1},
+  {"fieldname": "requested_on", "fieldtype": "Datetime", "label": "Requested On", "read_only": 1},
+  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Approved By", "options": "User", "read_only": 1},
+  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "Approved On", "read_only": 1},
+  {"fieldname": "pause_started_on", "fieldtype": "Datetime", "label": "Pause Started On", "read_only": 1},
+  {"fieldname": "resumed_on", "fieldtype": "Datetime", "label": "Resumed On", "read_only": 1},
+  {"default": "0", "fieldname": "paused_minutes", "fieldtype": "Int", "label": "Paused Service Minutes", "read_only": 1},
+  {"fieldname": "decision_notes", "fieldtype": "Small Text", "label": "Decision Notes", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist SLA Pause",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "role": "System Manager", "write": 1},
+  {"create": 1, "delete": 1, "read": 1, "role": "Taskist Manager", "write": 1}
+ ],
+ "sort_field": "requested_on",
+ "sort_order": "DESC"
+}

@@ -1,0 +1,36 @@
+{
+ "actions": [],
+ "autoname": "field:revision_key",
+ "creation": "2026-06-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["revision_key", "rule_doctype", "rule_name", "version", "status", "effective_from", "effective_to", "approved_by", "approved_on", "change_reason", "configuration_hash", "configuration_json"],
+ "fields": [
+  {"fieldname": "revision_key", "fieldtype": "Data", "hidden": 1, "label": "Revision Key", "reqd": 1, "unique": 1},
+  {"fieldname": "rule_doctype", "fieldtype": "Link", "in_list_view": 1, "label": "Rule Type", "options": "DocType", "reqd": 1, "search_index": 1},
+  {"fieldname": "rule_name", "fieldtype": "Dynamic Link", "in_list_view": 1, "label": "Rule", "options": "rule_doctype", "reqd": 1, "search_index": 1},
+  {"fieldname": "version", "fieldtype": "Int", "in_list_view": 1, "label": "Version", "reqd": 1},
+  {"fieldname": "status", "fieldtype": "Data", "in_list_view": 1, "label": "Approval Status"},
+  {"fieldname": "effective_from", "fieldtype": "Datetime", "label": "Effective From"},
+  {"fieldname": "effective_to", "fieldtype": "Datetime", "label": "Effective To"},
+  {"fieldname": "approved_by", "fieldtype": "Link", "label": "Approved By", "options": "User"},
+  {"fieldname": "approved_on", "fieldtype": "Datetime", "label": "Approved On"},
+  {"fieldname": "change_reason", "fieldtype": "Small Text", "label": "Change Reason"},
+  {"fieldname": "configuration_hash", "fieldtype": "Data", "label": "Configuration Hash", "reqd": 1},
+  {"fieldname": "configuration_json", "fieldtype": "Long Text", "label": "Configuration JSON", "read_only": 1, "reqd": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "modified": "2026-06-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Rule Revision",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "role": "System Manager", "write": 1},
+  {"read": 1, "role": "Taskist Manager"},
+  {"read": 1, "role": "Taskist Auditor"}
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}
