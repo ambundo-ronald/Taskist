@@ -11,28 +11,48 @@
 					<FeatherIcon name="folder" class="w-3.5 h-3.5" />
 					Subtask of: {{ parentTask }}
 				</div>
-				<input
-					ref="input"
-					v-model="subject"
-					@keydown.enter="create"
-					@keydown.escape="$emit('close')"
-					type="text"
-					:placeholder="parentTask ? 'Subtask name...' : 'What needs to be done?'"
-					class="w-full text-base px-0 py-2 border-0 bg-transparent dark:text-gray-100 dark:placeholder-gray-400 focus:outline-none focus:ring-0"
-					autofocus
-				/>
+				<div>
+					<label for="taskist-quick-subject" class="field-label">Task subject <span class="text-red-500">*</span></label>
+					<input
+						id="taskist-quick-subject"
+						ref="input"
+						v-model="subject"
+						@input="createError = ''"
+						@keydown.enter="create"
+						@keydown.escape="$emit('close')"
+						type="text"
+						:placeholder="parentTask ? 'Enter subtask name' : 'What needs to be done?'"
+						class="control-input w-full"
+						autocomplete="off"
+						autofocus
+					/>
+				</div>
 				<PrioritySlider v-model="priority" />
-				<div class="flex items-center gap-3 flex-wrap">
-					<FrappeSelect
-						v-model="status"
-						:options="['Open', 'Working', 'Pending Review']"
-					/>
-					<DatetimePicker
-						:model-value="dueDatetime"
-						@update:model-value="(v: string) => dueDatetime = v"
-						placeholder="Date & time"
-						input-class="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-gray-200"
-					/>
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div>
+						<label class="field-label">Project</label>
+						<select v-model="project" class="control-input w-full">
+							<option value="">Non-Project Task</option>
+							<option v-for="item in projects" :key="item" :value="item">{{ item }}</option>
+						</select>
+					</div>
+					<div>
+						<label class="field-label">Status</label>
+						<select v-model="status" class="control-input w-full">
+							<option value="Open">Open</option>
+							<option value="Working">Working</option>
+							<option value="Pending Review">Pending Review</option>
+						</select>
+					</div>
+					<div class="sm:col-span-2">
+						<label class="field-label">Due date and time</label>
+						<DatetimePicker
+							:model-value="dueDatetime"
+							@update:model-value="(v: string) => dueDatetime = v"
+							placeholder="Select date and time"
+							input-class="control-input w-full"
+						/>
+					</div>
 				</div>
 			</div>
 		</template>
@@ -51,6 +71,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { call } from '@/data/api'
 import { useTaskStore } from '@/stores/taskStore'
 import PrioritySlider from '@/components/common/PrioritySlider.vue'
 import DatetimePicker from '@/components/common/DatetimePicker.vue'
@@ -61,6 +82,8 @@ const taskStore = useTaskStore()
 
 const input = ref<HTMLInputElement | null>(null)
 const subject = ref('')
+const project = ref('')
+const projects = ref<string[]>([])
 const priority = ref('Medium')
 const status = ref('Open')
 
@@ -92,6 +115,7 @@ async function create() {
 
 		await taskStore.quickCreate({
 			subject: subject.value.trim(),
+			project: project.value || undefined,
 			priority: priority.value,
 			status: status.value,
 			exp_start_date,
@@ -107,5 +131,17 @@ async function create() {
 	}
 }
 
-onMounted(() => input.value?.focus())
+onMounted(async () => {
+	try {
+		projects.value = await call('taskist.api.get_task_projects') || []
+	} catch {
+		projects.value = []
+	}
+	input.value?.focus()
+})
 </script>
+
+<style scoped>
+.field-label { @apply block mb-1 text-xs font-medium text-gray-500 dark:text-gray-400; }
+.control-input { @apply min-h-10 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100; }
+</style>

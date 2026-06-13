@@ -14,6 +14,7 @@
 			<div class="flex items-center justify-between mb-3">
 				<h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Projects</h3>
 				<button
+					v-if="taskStore.accessScope.manage_all_tasks"
 					@click="showProjectDialog = true"
 					class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
 					title="New Project"
@@ -55,7 +56,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getList } from '@/data/api'
+import { call } from '@/data/api'
 import { useTaskStore } from '@/stores/taskStore'
 import ProjectDialog from '@/components/common/ProjectDialog.vue'
 
@@ -69,15 +70,9 @@ const showProjectDialog = ref(false)
 
 async function loadProjects() {
 	try {
-		const result = await getList('Project', {
-			fields: ['name'],
-			filters: { status: 'Open' },
-			order_by: 'name asc',
-			limit_page_length: 50,
-		})
-		projects.value = result.map((p: any) => p.name)
+		projects.value = await call('taskist.api.get_task_projects') || []
 	} catch {
-		// Projects module might not be available
+		projects.value = []
 	}
 }
 

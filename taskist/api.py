@@ -232,6 +232,19 @@ def get_access_scope():
 
 
 @frappe.whitelist()
+def get_task_projects():
+	"""Return only projects represented by Tasks the current user can see."""
+	rows = frappe.get_list(
+		"Task",
+		filters={"is_template": 0, "project": ["is", "set"]},
+		fields=["project"],
+		order_by="project asc",
+		page_length=5000,
+	)
+	return sorted({row.project for row in rows if row.project})
+
+
+@frappe.whitelist()
 def get_task(task_name):
 	"""Get a Task document after applying Taskist visibility rules."""
 	check_task_view(task_name)
@@ -272,6 +285,14 @@ def quick_create_task(
 	tags=None,
 ):
 	"""Quickly create a task with minimal input."""
+	subject = (subject or "").strip()
+	if not subject:
+		frappe.throw("Task subject is required.")
+	if priority not in {"Low", "Medium", "High", "Urgent"}:
+		frappe.throw("Unsupported task priority.")
+	if status not in {"Open", "Working", "Pending Review"}:
+		frappe.throw("Unsupported task status.")
+
 	task = frappe.new_doc("Task")
 	task.subject = subject
 	task.priority = priority
@@ -283,6 +304,7 @@ def quick_create_task(
 		check_task_update(parent_task)
 		frappe.has_permission("Task", "write", doc=parent_task, throw=True)
 		task.parent_task = parent_task
+		task.project = task.project or frappe.db.get_value("Task", parent_task, "project")
 		# Ensure the parent is marked as a group task (required by ERPNext)
 		parent_is_group = frappe.db.get_value("Task", parent_task, "is_group")
 		if not parent_is_group:
@@ -300,8 +322,10 @@ def quick_create_task(
 		if isinstance(assigned_to, str):
 			assigned_to = json.loads(assigned_to) if assigned_to.startswith("[") else [assigned_to]
 	if assigned_to:
+		from frappe.desk.form.assign_to import add as assign_add
+
 		for user in assigned_to:
-			frappe.desk.form.assign_to.add(
+			assign_add(
 				{"doctype": "Task", "name": task.name, "assign_to": [user]}
 			)
 			from taskist.events import record_event

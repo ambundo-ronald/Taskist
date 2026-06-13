@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, now_datetime
+from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from taskist.access import can_manage_all_tasks, can_view_all_tasks
 
@@ -65,7 +65,7 @@ def get_system_health():
 	from taskist.push import get_notification_health
 
 	heartbeat = frappe.get_single(HEARTBEAT_NAME)
-	last_run = heartbeat.last_scheduler_run
+	last_run = get_datetime(heartbeat.last_scheduler_run) if heartbeat.last_scheduler_run else None
 	stale_before = add_to_date(now_datetime(), minutes=-12, as_datetime=True)
 	scheduler_healthy = bool(last_run and last_run >= stale_before)
 	open_statuses = ["Open", "Warning", "Breached"]

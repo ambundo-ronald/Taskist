@@ -19,8 +19,17 @@ function extractFrappeError(responseData: any, fallback: string): string {
 			}
 			if (texts.length) return texts.join('\n')
 		}
-		if (responseData?.message) return responseData.message
-		if (responseData?.exc) return responseData.exc
+		if (responseData?.message && !String(responseData.message).includes('Traceback')) {
+			return String(responseData.message).replace(/<[^>]+>/g, '').trim()
+		}
+		const traceback = responseData?.exc || (
+			String(responseData?.message || '').includes('Traceback') ? responseData.message : ''
+		)
+		if (traceback) {
+			const lines = String(traceback).replace(/\\n/g, '\n').split('\n').filter(Boolean)
+			const finalLine = lines.at(-1) || fallback
+			return finalLine.replace(/^.*?(ValidationError|PermissionError|TypeError|ValueError):\s*/, '').trim()
+		}
 	} catch { /* fall through */ }
 	return fallback
 }
