@@ -348,6 +348,8 @@ Suggested first slice:
 
 - Listen to `ToDo` creation/update events where `reference_type` and `reference_name` point to a business document.
 - Create a source-linked Task for the assigned user.
+- Inherit the assignment instructions and source document title, priority, description, project,
+  and due date where those fields are available.
 - Mark the Task complete when the related `ToDo` is closed.
 - Let users complete the Task from Taskist, then close/update the linked `ToDo`.
 - Synchronize cancellation in both directions and immediately cancel any active SLA tracker.
