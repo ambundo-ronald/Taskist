@@ -170,6 +170,12 @@ def sync_todo_assignment(doc, method=None):
 			evaluate_task_against_sla_rules(task)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), "Taskist SLA Assignment Sync")
+		try:
+			from taskist.queue import notify_assignment_queue_conflict
+
+			notify_assignment_queue_conflict(doc, task)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Taskist Queue Assignment Advisory")
 
 		if not task_name:
 			from frappe.desk.form.assign_to import add as assign_add

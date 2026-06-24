@@ -53,6 +53,10 @@
 		<Badge :label="task.status || 'Open'" size="sm" theme="gray" class="hidden sm:inline-flex" />
 		<Badge v-if="task._sla_status" :label="slaLabel(task._sla_status)" size="sm" :theme="slaTheme(task._sla_status)" class="hidden sm:inline-flex" />
 		<Badge v-if="task._sla_response_status === 'Breached'" label="Response Breached" size="sm" theme="red" class="hidden lg:inline-flex" />
+		<span v-if="countdown" class="hidden md:inline-flex items-center gap-1 text-xs whitespace-nowrap" :class="countdownClass">
+			<FeatherIcon name="clock" class="w-3 h-3" />
+			{{ countdown }}
+		</span>
 		<span v-if="task.project" class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px] hidden md:inline">{{ task.project }}</span>
 		<span v-if="task.exp_end_date" class="text-xs whitespace-nowrap" :class="isOverdue ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'">
 			{{ formatDate(task.exp_end_date) }}
@@ -77,7 +81,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useTaskStore, type Task } from '@/stores/taskStore'
 import { call } from '@/data/api'
 import { documentUrl } from '@/utils/frappeRoute'
-import { slaLabel, slaTheme } from '@/utils/sla'
+import { countdownLabel, countdownTheme, slaLabel, slaTheme } from '@/utils/sla'
+import { useMinuteNow } from '@/composables/useMinuteNow'
 import dayjs from 'dayjs'
 
 const props = withDefaults(defineProps<{
@@ -87,6 +92,7 @@ const props = withDefaults(defineProps<{
 	depth: 0,
 })
 const taskStore = useTaskStore()
+const now = useMinuteNow()
 
 const windowWidth = ref(window.innerWidth)
 function onResize() { windowWidth.value = window.innerWidth }
@@ -113,6 +119,12 @@ const childCount = computed(() => {
 	return (taskStore.childrenMap[props.task.name] || []).length
 })
 const sourceUrl = computed(() => documentUrl(props.task.taskist_reference_doctype, props.task.taskist_reference_name))
+const countdownDeadline = computed(() => props.task._sla_due_at || props.task.exp_end_date)
+const countdown = computed(() => {
+	if (!countdownDeadline.value || ['Completed', 'Cancelled'].includes(props.task.status)) return ''
+	return countdownLabel(countdownDeadline.value, now.value)
+})
+const countdownClass = computed(() => countdownTheme(countdownDeadline.value, now.value))
 
 async function toggleDone() {
 	if (!isDone.value && props.task._sla_status === 'Breached') {

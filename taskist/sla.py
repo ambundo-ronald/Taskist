@@ -276,6 +276,12 @@ def _deliver(users, channel, title, body, task_name, event_key, tracker_name=Non
 	return bool(results) and all(results)
 
 
+def _deliver_alert(users, title, body, task_name, event_key, tracker_name=None):
+	push_ok = _deliver(users, "Push", title, body, task_name, f"{event_key}:push", tracker_name)
+	in_app_ok = _deliver(users, "In App", title, body, task_name, f"{event_key}:in-app", tracker_name)
+	return push_ok or in_app_ok
+
+
 def retry_failed_deliveries():
 	"""Retry failed notification channels unless their SLA was cancelled."""
 	retry_before = add_to_date(now_datetime(), minutes=-4, as_datetime=True)
@@ -661,9 +667,8 @@ def evaluate_open_trackers():
 					dedupe_key=f"response-breached:{tracker.name}:{tracker.response_due_at}",
 				)
 		if tracker.response_status == "Breached" and rule.notify_on_breach and not tracker.response_breach_sent_on:
-			delivered = _deliver(
+			delivered = _deliver_alert(
 				assignees,
-				"Push",
 				"First response SLA breached",
 				f"{tracker.task} has passed its first response target.",
 				tracker.task,
@@ -691,9 +696,8 @@ def evaluate_open_trackers():
 					dedupe_key=f"resolution-breached:{tracker.name}:{tracker.due_at}",
 				)
 			if rule.notify_on_breach and not tracker.breach_sent_on:
-				delivered = _deliver(
+				delivered = _deliver_alert(
 					assignees,
-					"Push",
 					"SLA breached",
 					f"{tracker.task} has passed its resolution target.",
 					tracker.task,
@@ -718,9 +722,8 @@ def evaluate_open_trackers():
 					dedupe_key=f"warning:{tracker.name}:{tracker.warning_at}",
 				)
 			if rule.notify_on_warning and not tracker.warning_sent_on:
-				delivered = _deliver(
+				delivered = _deliver_alert(
 					assignees,
-					"Push",
 					"SLA warning",
 					f"{tracker.task} is approaching its resolution target.",
 					tracker.task,

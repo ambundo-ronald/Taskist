@@ -136,7 +136,7 @@ def get_tasks(
 			filters={"task": ["in", task_names]},
 			fields=[
 				"task", "status", "priority", "due_at", "warning_at", "rule",
-				"response_status", "response_due_at", "current_escalation_level",
+				"start_time", "response_status", "response_due_at", "current_escalation_level",
 				"pause_status", "active_pause",
 			],
 			order_by="due_at asc",
@@ -152,6 +152,7 @@ def get_tasks(
 			task["_sla_due_at"] = str(tracker.due_at) if tracker and tracker.due_at else None
 			task["_sla_warning_at"] = str(tracker.warning_at) if tracker and tracker.warning_at else None
 			task["_sla_rule"] = tracker.rule if tracker else None
+			task["_sla_start_time"] = str(tracker.start_time) if tracker and tracker.start_time else None
 			task["_sla_priority"] = tracker.priority if tracker else None
 			task["_sla_response_status"] = tracker.response_status if tracker else None
 			task["_sla_response_due_at"] = (
@@ -697,6 +698,20 @@ def add_task_comment(task_name, content):
 		notes=re.sub(r"<[^>]+>", "", content or "")[:1000],
 		dedupe_key=f"comment:{comment.name}",
 	)
+	task = frappe.get_doc("Task", task_name)
+	from taskist.notifications import notify_task_activity, plain_text
+
+	preview = plain_text(content, 120)
+	body = f"{frappe.session.user} commented on {task.subject}."
+	if preview:
+		body = f"{body} {preview}"
+	notify_task_activity(
+		task,
+		"New task comment",
+		body,
+		f"comment-{comment.name}",
+		exclude_user=frappe.session.user,
+	)
 	return {
 		"name": comment.name,
 		"content": comment.content,
@@ -796,6 +811,7 @@ def notify_task_change(doc, method=None):
 	from taskist.events import record_task_change
 	from taskist.sla import mark_response_for_task
 
+	previous = doc.get_doc_before_save() if method == "on_update" else None
 	record_task_change(doc, method)
 	mark_response_for_task(doc)
 	if doc.status in ("Completed", "Cancelled"):
@@ -811,6 +827,25 @@ def notify_task_change(doc, method=None):
 		from taskist.process import handle_task_handoff
 
 		handle_task_handoff(doc, method)
+	if previous and previous.status != doc.status:
+		from taskist.notifications import notify_task_activity
+
+		if doc.status == "Pending Review":
+			notify_task_activity(
+				doc,
+				"Task sent for review",
+				f"{doc.subject} is waiting for review.",
+				f"pending-review-{doc.name}-{doc.modified}",
+				exclude_user=frappe.session.user,
+			)
+		elif doc.status == "Completed":
+			notify_task_activity(
+				doc,
+				"Task completed",
+				f"{doc.subject} was completed.",
+				f"completed-{doc.name}-{doc.modified}",
+				exclude_user=frappe.session.user,
+			)
 
 	frappe.publish_realtime(
 		"taskist_update",

@@ -7,6 +7,10 @@
 		<template #body-content>
 			<div class="space-y-3">
 				<div v-if="createError" class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded px-3 py-2 text-xs text-red-700 dark:text-red-300">{{ createError }}</div>
+				<div v-if="queueAdvisory && !queueAdvisory.available" class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+					<div class="font-medium">You already have {{ queueAdvisory.overlap_count }} active task(s) in that window.</div>
+					<div>Suggested start: {{ formatDateTime(queueAdvisory.next_available_from) }}</div>
+				</div>
 				<div v-if="parentTask" class="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
 					<FeatherIcon name="folder" class="w-3.5 h-3.5" />
 					Subtask of: {{ parentTask }}
@@ -48,7 +52,7 @@
 						<label class="field-label">Due date and time</label>
 						<DatetimePicker
 							:model-value="dueDatetime"
-							@update:model-value="(v: string) => dueDatetime = v"
+							@update:model-value="handleDueChange"
 							placeholder="Select date and time"
 							input-class="control-input w-full"
 						/>
@@ -71,6 +75,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import dayjs from 'dayjs'
 import { call } from '@/data/api'
 import { useTaskStore } from '@/stores/taskStore'
 import PrioritySlider from '@/components/common/PrioritySlider.vue'
@@ -90,6 +95,7 @@ const status = ref('Open')
 const dueDatetime = ref(props.prefillDate || '')
 const creating = ref(false)
 const createError = ref('')
+const queueAdvisory = ref<any>(null)
 
 async function create() {
 	if (!subject.value.trim() || creating.value) return
@@ -129,6 +135,24 @@ async function create() {
 	} finally {
 		creating.value = false
 	}
+}
+
+async function handleDueChange(value: string) {
+	dueDatetime.value = value
+	queueAdvisory.value = null
+	if (!value || value.length <= 10) return
+	try {
+		queueAdvisory.value = await call('taskist.queue.get_queue_advisory', {
+			proposed_start: value,
+			duration_minutes: 60,
+		})
+	} catch {
+		queueAdvisory.value = null
+	}
+}
+
+function formatDateTime(value: string) {
+	return value ? dayjs(value).format('MMM D, h:mm A') : ''
 }
 
 onMounted(async () => {

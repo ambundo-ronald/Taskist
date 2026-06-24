@@ -50,6 +50,7 @@ export interface Task {
 	_sla_due_at: string | null
 	_sla_warning_at: string | null
 	_sla_rule: string | null
+	_sla_start_time: string | null
 	_sla_priority: string | null
 	_sla_response_status: string | null
 	_sla_response_due_at: string | null

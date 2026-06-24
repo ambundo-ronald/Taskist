@@ -330,6 +330,33 @@ Acceptance criteria:
 - Recovery actions remain permission-controlled and idempotent.
 - Production-volume SLA cycles finish within the five-minute scheduler interval.
 
+### Phase 10: Queue and Capacity Scheduling
+
+Goal: Prevent accidental overload by showing live task countdowns and warning assigners when an
+assignee is already occupied during the proposed working window.
+
+Status: Initial queue advisory is implemented locally. Enforcement policies and department tuning
+remain.
+
+- [x] Show live countdowns on task cards, list rows, and task details using SLA due time first, then
+      task due date.
+- [x] Build a queue advisory API that calculates active assigned task windows from SLA deadlines,
+      task due dates, and estimated duration.
+- [x] Warn Taskist assigners when a selected assignee already has active work in the proposed window.
+- [x] Notify ERP document assigners when a generated assignment task collides with the assignee's
+      active queue.
+- [ ] Add role-controlled hard blocking for teams that want assignment conflicts to require approval.
+- [ ] Add department-level queue capacity rules such as maximum concurrent tasks, buffer time, and
+      priority override.
+- [ ] Add a visual queue timeline by user, department, and day.
+
+Acceptance criteria:
+
+- A user can see how much time remains before an active task breaches its SLA.
+- When assigning into an occupied window, the assigner sees how many active tasks conflict and the
+  next suggested start time.
+- Queue warnings do not override RBAC or reveal task details outside the viewer's Taskist scope.
+
 ## Source-Linked Tasks
 
 Taskist should use ERPNext `Task` as the single work item, whether or not it belongs to a Project.
@@ -424,10 +451,12 @@ Useful notification events:
 - SLA warning threshold reached.
 - SLA breached.
 - Activity completed.
-- Activity sent back for review.
+- Activity sent for pending review.
 - Comment or attachment added on an assigned activity.
+- Queue conflict detected during assignment.
 
-The initial push implementation stores browser subscriptions and exposes a reusable backend sender. SLA and activity events can call `taskist.push.send_push_to_user`.
+The initial push implementation stores browser subscriptions and exposes a reusable backend sender.
+SLA and activity events use audited delivery records for push and in-app notifications.
 
 ## Task Visibility and RBAC
 

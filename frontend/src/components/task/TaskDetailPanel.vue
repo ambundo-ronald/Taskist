@@ -60,6 +60,13 @@
 						<FeatherIcon name="x" class="w-3.5 h-3.5" />
 					</button>
 				</div>
+				<div v-if="queueWarning" class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+					<FeatherIcon name="clock" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+					<div class="flex-1 whitespace-pre-line">{{ queueWarning }}</div>
+					<button @click="queueWarning = ''" class="text-amber-500 hover:text-amber-700 flex-shrink-0">
+						<FeatherIcon name="x" class="w-3.5 h-3.5" />
+					</button>
+				</div>
 
 				<!-- Subject -->
 				<TextInput v-model="doc.subject" @blur="save" class="w-full text-sm font-medium" />
@@ -75,6 +82,18 @@
 					<span class="text-blue-500 dark:text-blue-400">Source:</span>
 					<span class="font-medium truncate">{{ doc.taskist_reference_doctype }} {{ doc.taskist_reference_name }}</span>
 				</a>
+				<div
+					v-if="taskCountdown"
+					class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 px-3 py-2"
+				>
+					<div class="flex items-center gap-2 text-sm font-medium" :class="taskCountdownClass">
+						<FeatherIcon name="clock" class="w-4 h-4" />
+						{{ taskCountdown }}
+					</div>
+					<div class="text-[11px] text-gray-500 dark:text-gray-400">
+						{{ taskCountdownTarget }}
+					</div>
+				</div>
 
 				<!-- Process output and chain -->
 				<div v-if="processChain?.tasks?.length" class="space-y-2">
@@ -547,7 +566,8 @@ import { ref, watch, computed } from 'vue'
 import { useTaskStore } from '@/stores/taskStore'
 import { getDoc, call } from '@/data/api'
 import { documentUrl } from '@/utils/frappeRoute'
-import { slaLabel, slaTheme } from '@/utils/sla'
+import { countdownLabel, countdownTheme, slaLabel, slaTheme } from '@/utils/sla'
+import { useMinuteNow } from '@/composables/useMinuteNow'
 import PrioritySlider from '@/components/common/PrioritySlider.vue'
 import RecurrenceEditor from '@/components/common/RecurrenceEditor.vue'
 import LinkField from '@/components/common/LinkField.vue'
@@ -556,8 +576,10 @@ import DatetimePicker from '@/components/common/DatetimePicker.vue'
 import dayjs from 'dayjs'
 
 const taskStore = useTaskStore()
+const now = useMinuteNow()
 const doc = ref<any>(null)
 const saveError = ref('')
+const queueWarning = ref('')
 const comments = ref<any[]>([])
 const slaTrackers = ref<any[]>([])
 const timeline = ref<{ events: any[]; metrics: Record<string, number> }>({
@@ -602,6 +624,19 @@ const delayDialogActionLabel = computed(() => ({
 	rework: 'Return Task',
 }[delayDialogMode.value || 'completion']))
 const sourceUrl = computed(() => documentUrl(doc.value?.taskist_reference_doctype, doc.value?.taskist_reference_name))
+const taskCountdownDeadline = computed(() => {
+	const firstTracker = slaTrackers.value?.[0]
+	return firstTracker?.due_at || doc.value?.exp_end_date || ''
+})
+const taskCountdown = computed(() => {
+	if (!doc.value || !taskCountdownDeadline.value || ['Completed', 'Cancelled'].includes(doc.value.status)) return ''
+	return countdownLabel(taskCountdownDeadline.value, now.value)
+})
+const taskCountdownClass = computed(() => countdownTheme(taskCountdownDeadline.value, now.value))
+const taskCountdownTarget = computed(() => {
+	if (!taskCountdownDeadline.value) return ''
+	return `Due ${dayjs(taskCountdownDeadline.value).format('MMM D, h:mm A')}`
+})
 const auditReportUrl = computed(() => {
 	const task = encodeURIComponent(doc.value?.name || '')
 	return `/app/query-report/Taskist%20SLA%20Audit%20Timeline?task=${task}`
@@ -814,9 +849,28 @@ async function addAssignee(email: string) {
 	try {
 		const result = await call('taskist.api.assign_task', { task_name: doc.value.name, user: email })
 		assignees.value = result || []
+		queueWarning.value = ''
+		await loadQueueAdvisory(email)
 		await Promise.all([taskStore.fetchTasks(), loadTimeline()])
 	} catch (e) {
 		console.error('Failed to assign:', e)
+	}
+}
+
+async function loadQueueAdvisory(email: string) {
+	if (!doc.value) return
+	try {
+		const advisory = await call('taskist.queue.get_queue_advisory', {
+			user: email,
+			proposed_start: doc.value.exp_start_date || doc.value._sla_start_time || undefined,
+			proposed_end: doc.value.exp_end_date || undefined,
+			exclude_task: doc.value.name,
+		})
+		if (advisory && !advisory.available) {
+			queueWarning.value = `${email} already has ${advisory.overlap_count} active task(s) in that window. Suggested start: ${dayjs(advisory.next_available_from).format('MMM D, h:mm A')}.`
+		}
+	} catch {
+		// Queue advice should never block assignment.
 	}
 }
 
