@@ -1,0 +1,70 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"taskist_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Taskist</span>\",\"col\":12}},{\"id\":\"taskist_app\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Taskist\",\"col\":3}},{\"id\":\"task_list\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tasks\",\"col\":3}},{\"id\":\"notification_log\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Notifications\",\"col\":3}}]",
+ "creation": "2026-06-26 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "check-square",
+ "idx": 0,
+ "indicator_color": "blue",
+ "is_hidden": 0,
+ "label": "Taskist",
+ "links": [],
+ "modified": "2026-06-26 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Taskist User"
+  },
+  {
+   "role": "Taskist Manager"
+  },
+  {
+   "role": "Taskist Auditor"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sequence_id": 10,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "",
+   "format": "{}",
+   "label": "Open Taskist",
+   "link_to": "/taskist",
+   "stats_filter": "[]",
+   "type": "URL"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "format": "{}",
+   "label": "Tasks",
+   "link_to": "Task",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "format": "{}",
+   "label": "My Notifications",
+   "link_to": "Notification Log",
+   "stats_filter": "[]",
+   "type": "DocType"
+  }
+ ],
+ "title": "Taskist"
+}

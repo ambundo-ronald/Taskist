@@ -23,15 +23,89 @@
 		<!-- Right-side icon group -->
 		<div class="flex items-center gap-1 ml-auto">
 			<!-- Dark / Light mode toggle -->
-			<button
-				@click="togglePush"
-				class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-				:class="push.enabled.value ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'"
-				:title="push.statusLabel.value"
-				:disabled="push.loading.value"
-			>
-				<FeatherIcon name="bell" class="w-5 h-5" />
-			</button>
+			<div class="relative">
+				<button
+					@click="toggleNotifications"
+					class="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+					:class="notifications.hasUnread.value ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'"
+					title="Notifications"
+				>
+					<FeatherIcon name="bell" class="w-5 h-5" />
+					<span
+						v-if="notifications.unreadCount.value"
+						class="absolute -right-0.5 -top-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-[18px] text-white text-center"
+					>
+						{{ notifications.unreadCount.value > 9 ? '9+' : notifications.unreadCount.value }}
+					</span>
+				</button>
+
+				<div
+					v-if="showNotifications"
+					class="absolute right-0 z-50 mt-2 w-[min(92vw,380px)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+				>
+					<div class="flex items-center justify-between border-b border-gray-100 px-3 py-2 dark:border-gray-700">
+						<div>
+							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</div>
+							<div class="text-xs text-gray-500 dark:text-gray-400">{{ push.statusLabel.value }}</div>
+						</div>
+						<button
+							v-if="notifications.unreadCount.value"
+							@click="notifications.markAllRead()"
+							class="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+						>
+							Mark all read
+						</button>
+					</div>
+
+					<div class="flex items-center gap-2 border-b border-gray-100 px-3 py-2 dark:border-gray-700">
+						<Button
+							:variant="push.enabled.value ? 'subtle' : 'solid'"
+							:theme="push.enabled.value ? 'gray' : 'blue'"
+							:label="push.enabled.value ? 'Disable push' : 'Enable push'"
+							:loading="push.loading.value"
+							@click="togglePush"
+						/>
+						<Button
+							v-if="push.enabled.value"
+							variant="subtle"
+							theme="gray"
+							label="Test"
+							:loading="push.loading.value"
+							@click="push.sendTest()"
+						/>
+					</div>
+
+					<div v-if="notifications.loading.value" class="px-3 py-6 text-center text-sm text-gray-500">
+						Loading notifications...
+					</div>
+					<div v-else-if="notifications.error.value" class="px-3 py-4 text-sm text-red-600">
+						{{ notifications.error.value }}
+					</div>
+					<div v-else-if="!notifications.notifications.value.length" class="px-3 py-6 text-center text-sm text-gray-500">
+						No notifications yet
+					</div>
+					<div v-else class="max-h-96 overflow-auto">
+						<button
+							v-for="item in notifications.notifications.value"
+							:key="item.name"
+							@click="openNotification(item)"
+							class="block w-full border-b border-gray-100 px-3 py-2 text-left last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/60"
+						>
+							<div class="flex items-start gap-2">
+								<span
+									class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+									:class="item.read ? 'bg-transparent' : 'bg-blue-500'"
+								/>
+								<div class="min-w-0 flex-1">
+									<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ item.subject }}</div>
+									<div v-if="item.body" class="mt-0.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">{{ item.body }}</div>
+									<div class="mt-1 text-[11px] text-gray-400">{{ formatNotificationTime(item.creation) }}</div>
+								</div>
+							</div>
+						</button>
+					</div>
+				</div>
+			</div>
 
 			<button
 				@click="toggle()"
@@ -67,11 +141,13 @@
 </template>
 
 <script setup lang="ts">
+import dayjs from 'dayjs'
 import { ref } from 'vue'
 import { onMounted } from 'vue'
 import { useTaskStore } from '@/stores/taskStore'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { usePushNotifications } from '@/composables/usePushNotifications'
+import { useTaskistNotifications, type TaskistNotification } from '@/composables/useTaskistNotifications'
 import TaskQuickAdd from '@/components/task/TaskQuickAdd.vue'
 
 defineEmits(['show-shortcuts', 'toggle-menu'])
@@ -82,9 +158,13 @@ const prefillDate = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
 const { isDark, toggle } = useDarkMode()
 const push = usePushNotifications()
+const notifications = useTaskistNotifications()
+const showNotifications = ref(false)
 
 onMounted(() => {
 	push.refreshStatus()
+	notifications.refresh()
+	bindRealtimeNotifications()
 })
 
 async function togglePush() {
@@ -96,6 +176,30 @@ async function togglePush() {
 	if (push.enabled.value) {
 		await push.sendTest()
 	}
+}
+
+async function toggleNotifications() {
+	showNotifications.value = !showNotifications.value
+	if (showNotifications.value) {
+		await notifications.refresh()
+	}
+}
+
+async function openNotification(item: TaskistNotification) {
+	if (!item.read) {
+		await notifications.markRead(item.name)
+	}
+	window.location.href = item.url || '/taskist'
+}
+
+function formatNotificationTime(value: string) {
+	return value ? dayjs(value).format('MMM D, h:mm A') : ''
+}
+
+function bindRealtimeNotifications() {
+	const frappeRealtime = (window as any).frappe?.realtime
+	if (!frappeRealtime?.on) return
+	frappeRealtime.on('taskist_notification', () => notifications.refresh())
 }
 
 function openQuickAdd(date?: string) {

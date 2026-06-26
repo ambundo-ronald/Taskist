@@ -141,6 +141,8 @@ def approve_rule(rule_doctype, rule_name, effective_from=None, effective_to=None
 		frappe.throw(_("Only Taskist Managers can approve rules."), frappe.PermissionError)
 	if rule_doctype not in RULE_DOCTYPES:
 		frappe.throw(_("Unsupported rule type."))
+	if not change_reason:
+		frappe.throw(_("An approval reason is required."))
 	doc = frappe.get_doc(rule_doctype, rule_name)
 	doc.business_owner = doc.business_owner or frappe.session.user
 	doc.approval_status = "Approved"
@@ -153,6 +155,36 @@ def approve_rule(rule_doctype, rule_name, effective_from=None, effective_to=None
 	doc.save(ignore_permissions=True)
 	doc.reload()
 	return {"name": doc.name, "version": doc.current_version, "status": doc.approval_status}
+
+
+@frappe.whitelist()
+def clone_rule(rule_doctype, rule_name, new_rule_name, new_process_code=None):
+	if not can_manage_all_tasks():
+		frappe.throw(_("Only Taskist Managers can clone rules."), frappe.PermissionError)
+	if rule_doctype not in RULE_DOCTYPES:
+		frappe.throw(_("Unsupported rule type."))
+	if not new_rule_name:
+		frappe.throw(_("New rule name is required."))
+	if frappe.db.exists(rule_doctype, new_rule_name):
+		frappe.throw(_("A rule with this name already exists."))
+
+	from frappe.model.copy_doc import copy_doc
+
+	source = frappe.get_doc(rule_doctype, rule_name)
+	doc = copy_doc(source)
+	doc.rule_name = new_rule_name
+	doc.enabled = 0
+	doc.approval_status = "Draft"
+	doc.approved_by = None
+	doc.approved_on = None
+	doc.current_version = 0
+	doc.change_reason = _("Cloned from {0}").format(rule_name)
+	if rule_doctype == "Taskist Process Rule":
+		doc.process_code = new_process_code or frappe.scrub(new_rule_name).upper()
+		if frappe.db.exists(rule_doctype, {"process_code": doc.process_code}):
+			frappe.throw(_("A process rule with this process code already exists."))
+	doc.insert(ignore_permissions=False)
+	return {"doctype": doc.doctype, "name": doc.name}
 
 
 @frappe.whitelist()

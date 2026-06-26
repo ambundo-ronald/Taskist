@@ -1,0 +1,260 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"admin_header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Taskist Admin</span>\",\"col\":12}},{\"id\":\"sla_setup_card\",\"type\":\"card\",\"data\":{\"card_name\":\"SLA Setup\",\"col\":4}},{\"id\":\"process_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Process Automation\",\"col\":4}},{\"id\":\"governance_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Governance\",\"col\":4}},{\"id\":\"audit_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & Health\",\"col\":4}},{\"id\":\"access_card\",\"type\":\"card\",\"data\":{\"card_name\":\"Access & Notifications\",\"col\":4}}]",
+ "creation": "2026-06-26 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "settings",
+ "idx": 0,
+ "indicator_color": "orange",
+ "is_hidden": 0,
+ "label": "Taskist Admin",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SLA Setup",
+   "link_count": 4,
+   "link_to": "",
+   "link_type": "",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SLA Rules",
+   "link_count": 0,
+   "link_to": "Taskist SLA Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Delay Reasons",
+   "link_count": 0,
+   "link_to": "Taskist Delay Reason",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SLA Pauses",
+   "link_count": 0,
+   "link_to": "Taskist SLA Pause",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SLA Extensions",
+   "link_count": 0,
+   "link_to": "Taskist SLA Extension",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Process Automation",
+   "link_count": 3,
+   "link_to": "",
+   "link_type": "",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Process Rules",
+   "link_count": 0,
+   "link_to": "Taskist Process Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Process Pilots",
+   "link_count": 0,
+   "link_to": "Taskist Process Pilot",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Pilot Observations",
+   "link_count": 0,
+   "link_to": "Taskist Pilot Observation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Governance",
+   "link_count": 2,
+   "link_to": "",
+   "link_type": "",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Rule Revisions",
+   "link_count": 0,
+   "link_to": "Taskist Rule Revision",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "KPI Snapshots",
+   "link_count": 0,
+   "link_to": "Taskist KPI Snapshot",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Audit & Health",
+   "link_count": 5,
+   "link_to": "",
+   "link_type": "",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SLA Trackers",
+   "link_count": 0,
+   "link_to": "Taskist SLA Tracker",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "SLA Events",
+   "link_count": 0,
+   "link_to": "Taskist SLA Event",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Delay Logs",
+   "link_count": 0,
+   "link_to": "Taskist Delay Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "System Health",
+   "link_count": 0,
+   "link_to": "Taskist System Health",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Notification Delivery",
+   "link_count": 0,
+   "link_to": "Taskist Notification Delivery",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Access & Notifications",
+   "link_count": 3,
+   "link_to": "",
+   "link_type": "",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Access Profiles",
+   "link_count": 0,
+   "link_to": "Taskist Access Profile",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Push Subscriptions",
+   "link_count": 0,
+   "link_to": "Taskist Push Subscription",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Time Entries",
+   "link_count": 0,
+   "link_to": "Taskist Time Entry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-06-26 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Taskist",
+ "name": "Taskist Admin",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "Taskist",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Taskist Manager"
+  },
+  {
+   "role": "Taskist Auditor"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sequence_id": 11,
+ "shortcuts": [],
+ "title": "Taskist Admin"
+}

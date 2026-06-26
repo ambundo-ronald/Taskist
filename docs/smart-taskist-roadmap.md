@@ -406,6 +406,10 @@ Initial implementation:
 - Trackers compute start time, warning time, and due time.
 - The hourly scheduler evaluates open trackers.
 - Warning and breach events can send push notifications.
+- SLA setup can start from templates for Internal Approval, Quotation / Sales, Procurement,
+  Finance, and Support Desk instead of manually filling every priority row.
+- Process rules can use a simple setup prompt for the common "source document creates task"
+  pattern, then advanced handoff/output fields can be configured only when needed.
 
 ### SLA Priority Targets
 
@@ -457,6 +461,13 @@ Useful notification events:
 
 The initial push implementation stores browser subscriptions and exposes a reusable backend sender.
 SLA and activity events use audited delivery records for push and in-app notifications.
+Taskist also exposes a persistent in-app notification drawer backed by Frappe Notification Log, so
+refreshing the PWA does not lose alerts.
+
+For multi-site or multi-ERPNext deployments, browser push subscriptions are site-specific. Configure
+VAPID on each ERPNext site/domain and have users enable notifications on each site they use. If two
+ERPNext sites share users but run on different domains, each domain owns its own service worker,
+subscription records, and notification history.
 
 ## Task Visibility and RBAC
 

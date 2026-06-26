@@ -44,7 +44,14 @@ app_license = "AGPL-3.0"
 
 # include js in doctype views
 doctype_js = {
-	"Taskist Process Rule": "public/js/taskist_process_rule.js",
+	"Taskist Process Rule": [
+		"public/js/taskist_rule_governance.js",
+		"public/js/taskist_process_rule.js",
+	],
+	"Taskist SLA Rule": [
+		"public/js/taskist_rule_governance.js",
+		"public/js/taskist_sla_rule.js",
+	],
 	"Taskist SLA Pause": "public/js/taskist_sla_pause.js",
 	"Taskist SLA Extension": "public/js/taskist_sla_extension.js",
 }
