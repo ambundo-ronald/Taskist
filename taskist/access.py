@@ -6,6 +6,10 @@ from frappe import _
 
 VIEW_ALL_ROLES = {"System Manager", "Taskist Manager", "Taskist Auditor"}
 MANAGE_ALL_ROLES = {"System Manager", "Taskist Manager"}
+# The people who run projects and field work (ERPNext Projects Manager, and Maintenance Manager, which Techy Ops
+# uses) may see and update every task. This is only about tasks: Taskist's dashboards and approvals (SLA
+# extensions, rules, bulk reassign, escalation) still need the Taskist roles above.
+TASK_MANAGER_ROLES = {"Projects Manager", "Maintenance Manager"}
 
 
 def _roles(user=None):
@@ -21,6 +25,11 @@ def can_view_all_tasks(user=None):
 
 def can_manage_all_tasks(user=None):
 	return bool(_roles(user) & MANAGE_ALL_ROLES)
+
+
+def runs_all_tasks(user=None):
+	"""A projects or field-work manager: sees and updates every task (see TASK_MANAGER_ROLES)."""
+	return bool(_roles(user) & TASK_MANAGER_ROLES)
 
 
 def visible_users(user=None):
@@ -74,7 +83,7 @@ def task_assignees(task):
 
 def can_view_task(task_name, user=None):
 	user = user or frappe.session.user
-	if can_view_all_tasks(user):
+	if can_view_all_tasks(user) or runs_all_tasks(user):
 		return True
 
 	task = frappe.db.get_value("Task", task_name, ["_assign", "owner"], as_dict=True)
@@ -93,7 +102,7 @@ def check_task_view(task_name, user=None):
 
 def can_update_task(task_name, user=None):
 	user = user or frappe.session.user
-	if can_manage_all_tasks(user):
+	if can_manage_all_tasks(user) or runs_all_tasks(user):
 		return True
 	task = frappe.db.get_value("Task", task_name, ["_assign", "owner"], as_dict=True)
 	if not task:
